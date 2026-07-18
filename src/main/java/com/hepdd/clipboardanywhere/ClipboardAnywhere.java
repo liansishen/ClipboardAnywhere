@@ -11,11 +11,11 @@ import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 
 @Mod(
-        modid = ClipboardAnywhere.MODID,
-        version = Tags.VERSION,
-        name = ClipboardAnywhere.NAME,
-        acceptedMinecraftVersions = "[1.7.10]",
-        dependencies = "required-after:BiblioCraft")
+    modid = ClipboardAnywhere.MODID,
+    version = Tags.VERSION,
+    name = ClipboardAnywhere.NAME,
+    acceptedMinecraftVersions = "[1.7.10]",
+    dependencies = "required-after:BiblioCraft")
 public class ClipboardAnywhere {
 
     public static final String MODID = "clipboardanywhere";
@@ -23,8 +23,8 @@ public class ClipboardAnywhere {
     public static final Logger LOG = LogManager.getLogger(MODID);
 
     @SidedProxy(
-            clientSide = "com.hepdd.clipboardanywhere.ClientProxy",
-            serverSide = "com.hepdd.clipboardanywhere.CommonProxy")
+        clientSide = "com.hepdd.clipboardanywhere.ClientProxy",
+        serverSide = "com.hepdd.clipboardanywhere.CommonProxy")
     public static CommonProxy proxy;
 
     @Mod.EventHandler
