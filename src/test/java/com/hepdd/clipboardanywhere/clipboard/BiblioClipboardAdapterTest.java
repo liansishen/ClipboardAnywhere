@@ -105,6 +105,26 @@ public class BiblioClipboardAdapterTest {
         assertEquals(1, tile.button0state);
     }
 
+    @Test
+    public void changesPlacedClipboardPageAndReloadsTileFields() {
+        ItemStack stack = new ItemStack(new ItemClipboard());
+        ClipboardIdentity.setId(stack, UUID.randomUUID());
+        NBTTagCompound root = stack.getTagCompound();
+        root.setInteger("currentPage", 1);
+        root.setInteger("totalPages", 2);
+        root.setTag("page1", page("First", "One", 0));
+        root.setTag("page2", page("Second", "Two", 2));
+        TileEntityClipboard tile = new TileEntityClipboard();
+        setTileStack(tile, stack);
+
+        assertTrue(BiblioClipboardAdapter.apply(tile, ClipboardAction.NEXT_PAGE, -1));
+        assertEquals(2, tile.currentPage);
+        assertEquals(2, tile.totalPages);
+        assertEquals("Second", tile.titletext);
+        assertEquals("Two", tile.button0text);
+        assertEquals(2, tile.button0state);
+    }
+
     private static void setTileStack(TileEntityClipboard tile, ItemStack stack) {
         try {
             java.lang.reflect.Field inventory = TileEntityClipboard.class.getDeclaredField("inventory");

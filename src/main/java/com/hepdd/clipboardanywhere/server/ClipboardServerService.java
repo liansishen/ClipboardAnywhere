@@ -305,9 +305,7 @@ public final class ClipboardServerService {
             .getConfigurationManager().playerEntityList;
         for (Object entry : onlinePlayers) {
             EntityPlayerMP player = (EntityPlayerMP) entry;
-            for (ItemStack stack : player.inventory.mainInventory) {
-                if (stack != held && id.equals(ClipboardIdentity.getId(stack))) return true;
-            }
+            if (containsInventoryDuplicate(player.inventory.mainInventory, held, id)) return true;
         }
 
         ClipboardRecord record = data.getClipboard(id);
@@ -318,6 +316,14 @@ public final class ClipboardServerService {
         TileEntity tile = world.getTileEntity(record.getX(), record.getY(), record.getZ());
         return tile instanceof TileEntityClipboard
             && id.equals(ClipboardIdentity.getId(((TileEntityClipboard) tile).getStackInSlot(0)));
+    }
+
+    static boolean containsInventoryDuplicate(ItemStack[] inventory, ItemStack excluded, UUID id) {
+        if (inventory == null || id == null) return false;
+        for (ItemStack stack : inventory) {
+            if (stack != excluded && id.equals(ClipboardIdentity.getId(stack))) return true;
+        }
+        return false;
     }
 
     private static String defaultName(PlayerBindings bindings, ClipboardPageSnapshot page) {

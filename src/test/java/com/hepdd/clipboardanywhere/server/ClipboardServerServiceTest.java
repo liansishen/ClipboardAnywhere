@@ -8,12 +8,17 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import net.minecraft.item.ItemStack;
+
 import org.junit.Test;
 
+import com.hepdd.clipboardanywhere.clipboard.ClipboardIdentity;
 import com.hepdd.clipboardanywhere.data.PlayerBindingRecord;
 import com.hepdd.clipboardanywhere.data.PlayerBindings;
 import com.hepdd.clipboardanywhere.model.ClipboardPageSnapshot;
 import com.hepdd.clipboardanywhere.model.TargetStatus;
+
+import jds.bibliocraft.items.ItemClipboard;
 
 public class ClipboardServerServiceTest {
 
@@ -68,6 +73,24 @@ public class ClipboardServerServiceTest {
             fixture.firstId,
             ClipboardServerService.reconcileActiveBinding(fixture.bindings, fixture.statuses, null));
         assertEquals(fixture.firstId, fixture.bindings.getActiveId());
+    }
+
+    @Test
+    public void detectsCopiedIdentityButExcludesTheStackBeingBound() {
+        UUID id = UUID.randomUUID();
+        ItemStack held = clipboard(id);
+        ItemStack copied = clipboard(id);
+        ItemStack[] inventory = { null, held, null, copied };
+
+        assertTrue(ClipboardServerService.containsInventoryDuplicate(inventory, held, id));
+        assertFalse(ClipboardServerService.containsInventoryDuplicate(new ItemStack[] { held }, held, id));
+        assertFalse(ClipboardServerService.containsInventoryDuplicate(inventory, held, UUID.randomUUID()));
+    }
+
+    private static ItemStack clipboard(UUID id) {
+        ItemStack stack = new ItemStack(new ItemClipboard());
+        ClipboardIdentity.setId(stack, id);
+        return stack;
     }
 
     private static final class BindingFixture {

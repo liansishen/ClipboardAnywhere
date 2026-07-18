@@ -20,15 +20,14 @@ public final class ServerTargetResolver {
     public ServerTarget resolve(EntityPlayerMP player, ClipboardRecord clipboard, PlayerBindingRecord binding,
         long now) {
         UUID id = binding.getClipboardId();
-        for (int slot = 0; slot < player.inventory.mainInventory.length; slot++) {
-            ItemStack stack = player.inventory.mainInventory[slot];
-            if (id.equals(ClipboardIdentity.getId(stack))) {
-                if (BiblioClipboardAdapter.ensureStructure(stack)) {
-                    player.inventory.markDirty();
-                    player.inventoryContainer.detectAndSendChanges();
-                }
-                return ServerTarget.inventory(player, slot, stack, BiblioClipboardAdapter.read(stack, now));
+        int inventorySlot = findInventorySlot(player.inventory.mainInventory, id);
+        if (inventorySlot >= 0) {
+            ItemStack stack = player.inventory.mainInventory[inventorySlot];
+            if (BiblioClipboardAdapter.ensureStructure(stack)) {
+                player.inventory.markDirty();
+                player.inventoryContainer.detectAndSendChanges();
             }
+            return ServerTarget.inventory(player, inventorySlot, stack, BiblioClipboardAdapter.read(stack, now));
         }
 
         if (clipboard == null || !clipboard.hasPlacedTarget()) {
@@ -53,5 +52,13 @@ public final class ServerTargetResolver {
             world.markBlockForUpdate(clipboard.getX(), clipboard.getY(), clipboard.getZ());
         }
         return ServerTarget.placed(tile, BiblioClipboardAdapter.read(tile, now));
+    }
+
+    static int findInventorySlot(ItemStack[] inventory, UUID id) {
+        if (inventory == null || id == null) return -1;
+        for (int slot = 0; slot < inventory.length; slot++) {
+            if (id.equals(ClipboardIdentity.getId(inventory[slot]))) return slot;
+        }
+        return -1;
     }
 }
