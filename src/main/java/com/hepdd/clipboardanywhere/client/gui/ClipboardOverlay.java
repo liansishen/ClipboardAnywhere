@@ -543,8 +543,16 @@ public final class ClipboardOverlay {
 
         if (!layoutEditing && headerVisible) {
             if (dropdownOpen) drawDropdown(font, mouseX, mouseY);
-            if (renameField != null) drawRenameModal(font);
-            if (pendingUnbindId != null) drawUnbindModal(font);
+            if (renameField != null || pendingUnbindId != null) {
+                int previousBackgroundAlpha = backgroundAlpha;
+                int previousForegroundAlpha = foregroundAlpha;
+                backgroundAlpha = 255;
+                foregroundAlpha = 255;
+                if (renameField != null) drawRenameModal(font);
+                if (pendingUnbindId != null) drawUnbindModal(font);
+                backgroundAlpha = previousBackgroundAlpha;
+                foregroundAlpha = previousForegroundAlpha;
+            }
             if (!dropdownOpen && !isModalOpen()) drawHeaderTooltip(font, mouseX, mouseY);
         }
     }
@@ -729,8 +737,8 @@ public final class ClipboardOverlay {
             : shortcutTooltip(key, shortcutKey);
         int width = font.getStringWidth(text) + 8;
         int x = Math.max(2, Math.min(mouseX, OverlayGeometry.LOGICAL_WIDTH - width - 2));
-        Gui.drawRect(x, 20, x + width, 34, fadeBackground(0xE0101214));
-        font.drawString(text, x + 4, 23, fade(0xFFFFFFFF));
+        Gui.drawRect(x, 20, x + width, 34, 0xE0101214);
+        font.drawString(text, x + 4, 23, 0xFFFFFFFF);
     }
 
     private void drawContentTooltip(BindingView active, OverlayGeometry geometry, int screenWidth, int screenHeight,

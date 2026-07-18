@@ -21,10 +21,12 @@ import net.minecraft.util.StatCollector;
 import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
+
 import com.hepdd.clipboardanywhere.Config;
 import com.hepdd.clipboardanywhere.client.ClipboardClientState.Notice;
 import com.hepdd.clipboardanywhere.client.gui.ClipboardOverlay;
-import com.hepdd.clipboardanywhere.client.gui.OverlayHostScreen;
 import com.hepdd.clipboardanywhere.client.gui.OverlayInteractionScreen;
 import com.hepdd.clipboardanywhere.model.ClipboardAction;
 import com.hepdd.clipboardanywhere.network.NetworkHandler;
@@ -66,7 +68,12 @@ public final class ClientEventHandler {
             NetworkHandler.sendToServer(new C2SRequestState());
         }
 
-        updateHostScreen(minecraft);
+        if (minecraft.currentScreen instanceof OverlayInteractionScreen && !ClipboardOverlay.INSTANCE.isAvailable()) {
+            ClipboardOverlay.INSTANCE.cancelLayoutEdit();
+            minecraft.displayGuiScreen(null);
+        } else if (isOverlaySuppressed(minecraft.currentScreen)) {
+            ClipboardOverlay.INSTANCE.resetTransientState();
+        }
         updateNotice();
     }
 
@@ -74,7 +81,7 @@ public final class ClientEventHandler {
     public void onKeyInput(InputEvent.KeyInputEvent event) {
         ClipboardOverlay overlay = ClipboardOverlay.INSTANCE;
         GuiScreen screen = Minecraft.getMinecraft().currentScreen;
-        if (screen instanceof OverlayHostScreen || screen instanceof OverlayInteractionScreen) return;
+        if (screen != null) return;
         if (!overlay.isAvailable() || overlay.isModalOpen() || overlay.isLayoutEditing()) return;
         if (hasTextInputFocus(screen)) return;
         if (ClientKeyBindings.TOGGLE_COLLAPSE.isPressed()) {
@@ -110,6 +117,9 @@ public final class ClientEventHandler {
 
     @SubscribeEvent
     public void onGuiDraw(GuiScreenEvent.DrawScreenEvent.Post event) {
+        if (shouldUseOverlay(event.gui)) {
+            ClipboardOverlay.INSTANCE.render(event.gui.width, event.gui.height, event.mouseX, event.mouseY, true);
+        }
         renderNotice(event.gui.width, event.gui.height);
     }
 
@@ -121,34 +131,6 @@ public final class ClientEventHandler {
         int y = screenHeight - 58;
         int color = noticeSuccess ? 0xFF9BE59B : 0xFFFFC66D;
         minecraft.fontRenderer.drawStringWithShadow(text, x, y, color);
-    }
-
-    private void updateHostScreen(Minecraft minecraft) {
-        GuiScreen current = minecraft.currentScreen;
-        if (current instanceof OverlayHostScreen) {
-            if (!ClipboardOverlay.INSTANCE.isAvailable() || isOverlaySuppressed(current)) {
-                ClipboardOverlay.INSTANCE.cancelLayoutEdit();
-                ((OverlayHostScreen) current).restoreDelegate();
-            }
-            return;
-        }
-        if (current instanceof OverlayInteractionScreen) {
-            if (!ClipboardOverlay.INSTANCE.isAvailable()) {
-                ClipboardOverlay.INSTANCE.cancelLayoutEdit();
-                minecraft.displayGuiScreen(null);
-            }
-            return;
-        }
-        if (isOverlaySuppressed(current)) {
-            ClipboardOverlay.INSTANCE.resetTransientState();
-            return;
-        }
-        if (current == null || !ClipboardOverlay.INSTANCE.isAvailable()) return;
-
-        OverlayHostScreen host = new OverlayHostScreen(current);
-        ScaledResolution resolution = new ScaledResolution(minecraft, minecraft.displayWidth, minecraft.displayHeight);
-        minecraft.currentScreen = host;
-        host.setWorldAndResolution(minecraft, resolution.getScaledWidth(), resolution.getScaledHeight());
     }
 
     private void toggleManualInteraction() {
@@ -172,18 +154,16 @@ public final class ClientEventHandler {
     }
 
     public static boolean hasTextInputFocus(GuiScreen screen) {
-        GuiScreen delegate = screen instanceof OverlayHostScreen ? ((OverlayHostScreen) screen).getDelegate() : screen;
-        if (delegate == null || delegate instanceof OverlayInteractionScreen) return false;
-        if (delegate instanceof GuiChat || delegate instanceof GuiScreenBook || delegate instanceof GuiEditSign)
-            return true;
+        if (screen == null || screen instanceof OverlayInteractionScreen) return false;
+        if (screen instanceof GuiChat || screen instanceof GuiScreenBook || screen instanceof GuiEditSign) return true;
 
-        for (Class<?> type = delegate.getClass(); type != null
+        for (Class<?> type = screen.getClass(); type != null
             && GuiScreen.class.isAssignableFrom(type); type = type.getSuperclass()) {
             for (Field field : type.getDeclaredFields()) {
                 if (!GuiTextField.class.isAssignableFrom(field.getType())) continue;
                 try {
                     field.setAccessible(true);
-                    GuiTextField textField = (GuiTextField) field.get(delegate);
+                    GuiTextField textField = (GuiTextField) field.get(screen);
                     if (textField != null && textField.isFocused()) return true;
                 } catch (IllegalAccessException | SecurityException ignored) {
                     // Explicit vanilla text screens are handled above; inaccessible mod fields are skipped.
@@ -194,13 +174,60 @@ public final class ClientEventHandler {
     }
 
     public static boolean isOverlaySuppressed(GuiScreen screen) {
-        GuiScreen delegate = screen instanceof OverlayHostScreen ? ((OverlayHostScreen) screen).getDelegate() : screen;
-        return delegate instanceof GuiIngameMenu || delegate instanceof GuiOptions
-            || delegate instanceof GuiControls
-            || delegate instanceof GuiVideoSettings
-            || delegate instanceof GuiLanguage
-            || delegate instanceof GuiScreenOptionsSounds
-            || delegate instanceof GuiScreenResourcePacks
-            || delegate instanceof GuiSnooper;
+        if (screen == null) return false;
+        return screen instanceof GuiIngameMenu || screen instanceof GuiOptions
+            || screen instanceof GuiControls
+            || screen instanceof GuiVideoSettings
+            || screen instanceof GuiLanguage
+            || screen instanceof GuiScreenOptionsSounds
+            || screen instanceof GuiScreenResourcePacks
+            || screen instanceof GuiSnooper
+            || isSuppressedScreenClass(
+                screen.getClass()
+                    .getName());
+    }
+
+    public static boolean handleGuiMouseInput(GuiScreen screen) {
+        if (!shouldUseOverlay(screen)) return false;
+        ClipboardOverlay overlay = ClipboardOverlay.INSTANCE;
+        Minecraft minecraft = Minecraft.getMinecraft();
+        int mouseX = Mouse.getEventX() * screen.width / minecraft.displayWidth;
+        int mouseY = screen.height - Mouse.getEventY() * screen.height / minecraft.displayHeight - 1;
+        int wheel = Mouse.getEventDWheel();
+        boolean handled = wheel != 0 && overlay.mouseScrolled(wheel);
+        int button = Mouse.getEventButton();
+        if (!handled && button >= 0) {
+            handled = Mouse.getEventButtonState()
+                ? overlay.mouseClicked(screen.width, screen.height, mouseX, mouseY, button)
+                : overlay.mouseReleased(screen.width, screen.height, button);
+        } else if (!handled && Mouse.isButtonDown(0)) {
+            handled = overlay.mouseDragged(screen.width, screen.height, mouseX, mouseY, 0);
+        }
+        return handled || overlay.isLayoutEditing();
+    }
+
+    public static boolean handleGuiKeyboardInput(GuiScreen screen) {
+        if (!shouldUseOverlay(screen) || !Keyboard.getEventKeyState()) return false;
+        ClipboardOverlay overlay = ClipboardOverlay.INSTANCE;
+        int keyCode = Keyboard.getEventKey();
+        if (overlay.keyTyped(Keyboard.getEventCharacter(), keyCode)) return true;
+        if (!hasTextInputFocus(screen) && overlay.handleShortcut(keyCode)) return true;
+        return overlay.isLayoutEditing();
+    }
+
+    static boolean isSuppressedScreenClass(String className) {
+        return className.startsWith("com.gtnewhorizons.angelica.client.gui.")
+            || className.startsWith("com.gtnewhorizons.angelica.config.")
+            || className.startsWith("jss.notfine.config.")
+            || className.startsWith("jss.notfine.gui.")
+            || className.startsWith("me.flashyreese.mods.reeses_sodium_options.client.gui.")
+            || className.startsWith("me.jellysquid.mods.sodium.client.gui.")
+            || className.startsWith("net.coderbot.iris.gui.screen.");
+    }
+
+    private static boolean shouldUseOverlay(GuiScreen screen) {
+        return screen != null && !(screen instanceof OverlayInteractionScreen)
+            && !isOverlaySuppressed(screen)
+            && ClipboardOverlay.INSTANCE.isAvailable();
     }
 }
