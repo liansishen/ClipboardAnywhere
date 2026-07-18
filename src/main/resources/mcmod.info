@@ -1,0 +1,21 @@
+{
+	"modListVersion": 2,
+	"modList": [{
+		"modid": "${modId}",
+		"name": "${modName}",
+		"description": "Adds a movable, collapsible overlay for BiblioCraft clipboards so tasks can be viewed and checked from anywhere.",
+		"version": "${modVersion}",
+		"mcversion": "${minecraftVersion}",
+		"url": "",
+		"updateUrl": "",
+		"authorList": ["liansishen"],
+		"credits": "",
+		"logoFile": "",
+		"screenshots": [],
+		"parent": "",
+		"requiredMods": ["BiblioCraft"],
+		"dependencies": ["BiblioCraft"],
+		"dependants": [],
+		"useDependencyInformation": true
+	}]
+}
