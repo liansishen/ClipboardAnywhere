@@ -4,9 +4,16 @@ import java.lang.reflect.Field;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiChat;
+import net.minecraft.client.gui.GuiControls;
+import net.minecraft.client.gui.GuiLanguage;
+import net.minecraft.client.gui.GuiOptions;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiScreenBook;
+import net.minecraft.client.gui.GuiScreenOptionsSounds;
+import net.minecraft.client.gui.GuiScreenResourcePacks;
+import net.minecraft.client.gui.GuiSnooper;
 import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.client.gui.GuiVideoSettings;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.gui.inventory.GuiEditSign;
 import net.minecraft.util.StatCollector;
@@ -65,8 +72,10 @@ public final class ClientEventHandler {
     @SubscribeEvent
     public void onKeyInput(InputEvent.KeyInputEvent event) {
         ClipboardOverlay overlay = ClipboardOverlay.INSTANCE;
+        GuiScreen screen = Minecraft.getMinecraft().currentScreen;
+        if (screen instanceof OverlayHostScreen || screen instanceof OverlayInteractionScreen) return;
         if (!overlay.isAvailable() || overlay.isModalOpen() || overlay.isLayoutEditing()) return;
-        if (hasTextInputFocus(Minecraft.getMinecraft().currentScreen)) return;
+        if (hasTextInputFocus(screen)) return;
         if (ClientKeyBindings.TOGGLE_COLLAPSE.isPressed()) {
             overlay.toggleCollapsed();
             return;
@@ -128,6 +137,10 @@ public final class ClientEventHandler {
             }
             return;
         }
+        if (isOverlaySuppressed(current)) {
+            ClipboardOverlay.INSTANCE.resetTransientState();
+            return;
+        }
         if (current == null || !ClipboardOverlay.INSTANCE.isAvailable()) return;
 
         OverlayHostScreen host = new OverlayHostScreen(current);
@@ -156,7 +169,7 @@ public final class ClientEventHandler {
         }
     }
 
-    private static boolean hasTextInputFocus(GuiScreen screen) {
+    public static boolean hasTextInputFocus(GuiScreen screen) {
         GuiScreen delegate = screen instanceof OverlayHostScreen ? ((OverlayHostScreen) screen).getDelegate() : screen;
         if (delegate == null || delegate instanceof OverlayInteractionScreen) return false;
         if (delegate instanceof GuiChat || delegate instanceof GuiScreenBook || delegate instanceof GuiEditSign)
@@ -176,5 +189,15 @@ public final class ClientEventHandler {
             }
         }
         return false;
+    }
+
+    public static boolean isOverlaySuppressed(GuiScreen screen) {
+        GuiScreen delegate = screen instanceof OverlayHostScreen ? ((OverlayHostScreen) screen).getDelegate() : screen;
+        return delegate instanceof GuiOptions || delegate instanceof GuiControls
+            || delegate instanceof GuiVideoSettings
+            || delegate instanceof GuiLanguage
+            || delegate instanceof GuiScreenOptionsSounds
+            || delegate instanceof GuiScreenResourcePacks
+            || delegate instanceof GuiSnooper;
     }
 }

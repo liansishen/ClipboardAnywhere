@@ -2,7 +2,7 @@ package com.hepdd.clipboardanywhere.client.gui;
 
 public final class OverlayGeometry {
 
-    public static final int LOGICAL_WIDTH = 190;
+    public static final int LOGICAL_WIDTH = 127;
     public static final int HEADER_HEIGHT = 18;
     public static final int TITLE_HEIGHT = 16;
     public static final int ROW_HEIGHT = 14;

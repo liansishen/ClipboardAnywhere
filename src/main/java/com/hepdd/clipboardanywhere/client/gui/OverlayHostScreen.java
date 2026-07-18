@@ -5,6 +5,8 @@ import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
+import com.hepdd.clipboardanywhere.client.ClientEventHandler;
+
 public final class OverlayHostScreen extends GuiScreen {
 
     private final GuiScreen delegate;
@@ -24,6 +26,11 @@ public final class OverlayHostScreen extends GuiScreen {
     }
 
     @Override
+    public void initGui() {
+        delegate.setWorldAndResolution(mc, width, height);
+    }
+
+    @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         delegate.drawScreen(mouseX, mouseY, partialTicks);
         ClipboardOverlay.INSTANCE.render(width, height, mouseX, mouseY);
@@ -38,34 +45,28 @@ public final class OverlayHostScreen extends GuiScreen {
     public void handleMouseInput() {
         int mouseX = Mouse.getEventX() * width / mc.displayWidth;
         int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-        if (ClipboardOverlay.INSTANCE.isLayoutEditing()) {
-            int eventButton = Mouse.getEventButton();
-            if (eventButton >= 0) {
-                if (Mouse.getEventButtonState()) {
-                    ClipboardOverlay.INSTANCE.mouseClicked(width, height, mouseX, mouseY, eventButton);
-                } else {
-                    ClipboardOverlay.INSTANCE.mouseReleased(eventButton);
-                }
-            } else if (Mouse.isButtonDown(0)) {
-                ClipboardOverlay.INSTANCE.mouseDragged(width, height, mouseX, mouseY, 0);
-            }
-            return;
-        }
         boolean handled = false;
         if (Mouse.getEventDWheel() != 0) {
             handled = ClipboardOverlay.INSTANCE.mouseScrolled(Mouse.getEventDWheel());
         }
-        if (!handled && Mouse.getEventButtonState()) {
-            handled = ClipboardOverlay.INSTANCE.mouseClicked(width, height, mouseX, mouseY, Mouse.getEventButton());
+        int eventButton = Mouse.getEventButton();
+        if (!handled && eventButton >= 0) {
+            handled = Mouse.getEventButtonState()
+                ? ClipboardOverlay.INSTANCE.mouseClicked(width, height, mouseX, mouseY, eventButton)
+                : ClipboardOverlay.INSTANCE.mouseReleased(eventButton);
+        } else if (!handled && Mouse.isButtonDown(0)) {
+            handled = ClipboardOverlay.INSTANCE.mouseDragged(width, height, mouseX, mouseY, 0);
         }
         if (!handled) delegate.handleMouseInput();
     }
 
     @Override
     public void handleKeyboardInput() {
-        if (Keyboard.getEventKeyState()
-            && ClipboardOverlay.INSTANCE.keyTyped(Keyboard.getEventCharacter(), Keyboard.getEventKey())) {
-            return;
+        if (Keyboard.getEventKeyState()) {
+            int keyCode = Keyboard.getEventKey();
+            if (ClipboardOverlay.INSTANCE.keyTyped(Keyboard.getEventCharacter(), keyCode)) return;
+            if (!ClientEventHandler.hasTextInputFocus(delegate) && ClipboardOverlay.INSTANCE.handleShortcut(keyCode))
+                return;
         }
         delegate.handleKeyboardInput();
     }

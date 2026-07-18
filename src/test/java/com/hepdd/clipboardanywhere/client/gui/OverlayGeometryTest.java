@@ -8,6 +8,14 @@ import org.junit.Test;
 public class OverlayGeometryTest {
 
     @Test
+    public void usesCompactExpandedWidth() {
+        OverlayGeometry geometry = new OverlayGeometry(200, 10, 1.0D, 320, 300);
+
+        assertEquals(127, OverlayGeometry.LOGICAL_WIDTH);
+        assertEquals(127, geometry.getRenderedWidth());
+    }
+
+    @Test
     public void clampsPositionAndScaleInsideScreen() {
         OverlayGeometry geometry = new OverlayGeometry(900, -40, 2.0D, 320, 240);
 

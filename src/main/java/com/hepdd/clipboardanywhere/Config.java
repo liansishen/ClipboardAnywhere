@@ -6,11 +6,14 @@ import net.minecraftforge.common.config.Configuration;
 
 public class Config {
 
+    public static final double DEFAULT_OPACITY = 0.5D;
+    public static final double MIN_OPACITY = 0.05D;
+    public static final double MAX_OPACITY = 1.0D;
     private static Configuration configuration;
     public static int anchorRight = -1;
     public static int anchorTop = 36;
     public static double scale = 1.0D;
-    public static double opacity = 0.85D;
+    public static double opacity = DEFAULT_OPACITY;
     public static boolean collapsed;
 
     public static void synchronizeConfiguration(File configFile) {
@@ -26,10 +29,10 @@ public class Config {
             0.5D,
             2.0D);
         opacity = clamp(
-            configuration.get("overlay", "opacity", 0.85D)
-                .getDouble(0.85D),
-            0.25D,
-            1.0D);
+            configuration.get("overlay", "opacity", DEFAULT_OPACITY)
+                .getDouble(DEFAULT_OPACITY),
+            MIN_OPACITY,
+            MAX_OPACITY);
         collapsed = configuration.get("overlay", "collapsed", false)
             .getBoolean(false);
 
@@ -42,14 +45,14 @@ public class Config {
         anchorRight = right;
         anchorTop = top;
         scale = clamp(newScale, 0.5D, 2.0D);
-        opacity = clamp(newOpacity, 0.25D, 1.0D);
+        opacity = clamp(newOpacity, MIN_OPACITY, MAX_OPACITY);
         configuration.get("overlay", "anchorRight", -1)
             .set(anchorRight);
         configuration.get("overlay", "anchorTop", 36)
             .set(anchorTop);
         configuration.get("overlay", "scale", 1.0D)
             .set(scale);
-        configuration.get("overlay", "opacity", 0.85D)
+        configuration.get("overlay", "opacity", DEFAULT_OPACITY)
             .set(opacity);
         configuration.save();
     }
