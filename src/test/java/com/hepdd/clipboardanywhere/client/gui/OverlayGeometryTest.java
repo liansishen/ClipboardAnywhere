@@ -56,4 +56,48 @@ public class OverlayGeometryTest {
         assertTrue(geometry.containsCollapsed(19, 239));
         assertTrue(!geometry.containsCollapsed(20, 239));
     }
+
+    @Test
+    public void resolvesPositionFromEachScreenEdge() {
+        OverlayGeometry topRight = OverlayGeometry.fromEdges(true, false, 8, 12, 1.0D, 400, 300, false, true);
+        OverlayGeometry bottomLeft = OverlayGeometry.fromEdges(false, true, 15, 9, 1.0D, 400, 300, false, true);
+
+        assertEquals(400 - 8, topRight.getAnchorRight());
+        assertEquals(12, topRight.getTop());
+        assertEquals(15, bottomLeft.getLeft());
+        assertEquals(300 - 9, bottomLeft.getTop() + bottomLeft.getRenderedHeight());
+    }
+
+    @Test
+    public void convertsDraggedPositionToNearestEdges() {
+        OverlayGeometry geometry = new OverlayGeometry(390, 250, 1.0D, 400, 450);
+
+        OverlayGeometry.EdgePosition position = geometry.toEdgePosition(400, 450, false);
+
+        assertTrue(position.isFromRight());
+        assertTrue(position.isFromBottom());
+        assertEquals(10, position.getHorizontalOffset());
+        assertEquals(22, position.getVerticalOffset());
+    }
+
+    @Test
+    public void normalModeOmitsHeaderHeight() {
+        OverlayGeometry normal = OverlayGeometry.fromEdges(true, true, 8, 10, 1.0D, 400, 400, false, false);
+        OverlayGeometry interactive = OverlayGeometry.fromEdges(true, true, 8, 10, 1.0D, 400, 400, false, true);
+
+        assertEquals(OverlayGeometry.NORMAL_LOGICAL_HEIGHT, normal.getLogicalHeight());
+        assertEquals(OverlayGeometry.HEADER_HEIGHT, interactive.getRenderedHeight() - normal.getRenderedHeight());
+        assertEquals(
+            interactive.getTop() + interactive.getRenderedHeight(),
+            normal.getTop() + normal.getRenderedHeight());
+    }
+
+    @Test
+    public void relativeOffsetsSurviveResolutionChanges() {
+        OverlayGeometry first = OverlayGeometry.fromEdges(true, false, 7, 21, 1.0D, 400, 300, false, true);
+        OverlayGeometry resized = OverlayGeometry.fromEdges(true, false, 7, 21, 1.0D, 700, 500, false, true);
+
+        assertEquals(first.getAnchorRight() + 300, resized.getAnchorRight());
+        assertEquals(first.getTop(), resized.getTop());
+    }
 }

@@ -8,7 +8,7 @@ public final class OverlayInteractionScreen extends GuiScreen {
 
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        ClipboardOverlay.INSTANCE.render(width, height, mouseX, mouseY);
+        ClipboardOverlay.INSTANCE.render(width, height, mouseX, mouseY, true);
     }
 
     @Override
@@ -23,7 +23,7 @@ public final class OverlayInteractionScreen extends GuiScreen {
 
     @Override
     protected void mouseMovedOrUp(int mouseX, int mouseY, int button) {
-        ClipboardOverlay.INSTANCE.mouseReleased(button);
+        ClipboardOverlay.INSTANCE.mouseReleased(width, height, button);
     }
 
     @Override

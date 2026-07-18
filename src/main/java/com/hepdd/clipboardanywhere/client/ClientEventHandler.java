@@ -102,7 +102,7 @@ public final class ClientEventHandler {
                 minecraft,
                 minecraft.displayWidth,
                 minecraft.displayHeight);
-            ClipboardOverlay.INSTANCE.render(resolution.getScaledWidth(), resolution.getScaledHeight(), -1, -1);
+            ClipboardOverlay.INSTANCE.render(resolution.getScaledWidth(), resolution.getScaledHeight(), -1, -1, false);
             renderNotice(resolution.getScaledWidth(), resolution.getScaledHeight());
         }
     }

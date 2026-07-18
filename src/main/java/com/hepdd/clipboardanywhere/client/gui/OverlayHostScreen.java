@@ -33,7 +33,7 @@ public final class OverlayHostScreen extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         delegate.drawScreen(mouseX, mouseY, partialTicks);
-        ClipboardOverlay.INSTANCE.render(width, height, mouseX, mouseY);
+        ClipboardOverlay.INSTANCE.render(width, height, mouseX, mouseY, true);
     }
 
     @Override
@@ -53,7 +53,7 @@ public final class OverlayHostScreen extends GuiScreen {
         if (!handled && eventButton >= 0) {
             handled = Mouse.getEventButtonState()
                 ? ClipboardOverlay.INSTANCE.mouseClicked(width, height, mouseX, mouseY, eventButton)
-                : ClipboardOverlay.INSTANCE.mouseReleased(eventButton);
+                : ClipboardOverlay.INSTANCE.mouseReleased(width, height, eventButton);
         } else if (!handled && Mouse.isButtonDown(0)) {
             handled = ClipboardOverlay.INSTANCE.mouseDragged(width, height, mouseX, mouseY, 0);
         }
