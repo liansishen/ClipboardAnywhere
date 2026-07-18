@@ -59,8 +59,8 @@ public class OverlayGeometryTest {
 
     @Test
     public void resolvesPositionFromEachScreenEdge() {
-        OverlayGeometry topRight = OverlayGeometry.fromEdges(true, false, 8, 12, 1.0D, 400, 300, false, true);
-        OverlayGeometry bottomLeft = OverlayGeometry.fromEdges(false, true, 15, 9, 1.0D, 400, 300, false, true);
+        OverlayGeometry topRight = OverlayGeometry.fromEdges(true, false, 8, 12, 1.0D, 400, 300, false);
+        OverlayGeometry bottomLeft = OverlayGeometry.fromEdges(false, true, 15, 9, 1.0D, 400, 300, false);
 
         assertEquals(400 - 8, topRight.getAnchorRight());
         assertEquals(12, topRight.getTop());
@@ -81,23 +81,36 @@ public class OverlayGeometryTest {
     }
 
     @Test
-    public void normalModeOmitsHeaderHeight() {
-        OverlayGeometry normal = OverlayGeometry.fromEdges(true, true, 8, 10, 1.0D, 400, 400, false, false);
-        OverlayGeometry interactive = OverlayGeometry.fromEdges(true, true, 8, 10, 1.0D, 400, 400, false, true);
+    public void expandedGeometryAlwaysReservesHeaderSpace() {
+        OverlayGeometry geometry = OverlayGeometry.fromEdges(true, true, 8, 10, 1.0D, 400, 400, false);
 
-        assertEquals(OverlayGeometry.NORMAL_LOGICAL_HEIGHT, normal.getLogicalHeight());
-        assertEquals(OverlayGeometry.HEADER_HEIGHT, interactive.getRenderedHeight() - normal.getRenderedHeight());
-        assertEquals(
-            interactive.getTop() + interactive.getRenderedHeight(),
-            normal.getTop() + normal.getRenderedHeight());
+        assertEquals(OverlayGeometry.LOGICAL_HEIGHT, geometry.getLogicalHeight());
+        assertEquals(400 - 10, geometry.getTop() + geometry.getRenderedHeight());
     }
 
     @Test
     public void relativeOffsetsSurviveResolutionChanges() {
-        OverlayGeometry first = OverlayGeometry.fromEdges(true, false, 7, 21, 1.0D, 400, 300, false, true);
-        OverlayGeometry resized = OverlayGeometry.fromEdges(true, false, 7, 21, 1.0D, 700, 500, false, true);
+        OverlayGeometry first = OverlayGeometry.fromEdges(true, false, 7, 21, 1.0D, 400, 300, false);
+        OverlayGeometry resized = OverlayGeometry.fromEdges(true, false, 7, 21, 1.0D, 700, 500, false);
 
         assertEquals(first.getAnchorRight() + 300, resized.getAnchorRight());
         assertEquals(first.getTop(), resized.getTop());
+    }
+
+    @Test
+    public void taskStateOnlyUsesCheckboxHitbox() {
+        int taskStart = OverlayGeometry.HEADER_HEIGHT + OverlayGeometry.TITLE_HEIGHT;
+
+        assertEquals(0, OverlayGeometry.checkboxRowAt(6, taskStart + 3, taskStart, 9));
+        assertEquals(8, OverlayGeometry.checkboxRowAt(14, taskStart + OverlayGeometry.ROW_HEIGHT * 8, taskStart, 9));
+        assertEquals(-1, OverlayGeometry.checkboxRowAt(20, taskStart + 3, taskStart, 9));
+        assertEquals(-1, OverlayGeometry.checkboxRowAt(6, taskStart - 1, taskStart, 9));
+    }
+
+    @Test
+    public void opacityMultipliesForegroundAlpha() {
+        assertEquals(0x7FABCDEF, OverlayGeometry.multiplyAlpha(0xFFABCDEF, 127));
+        assertEquals(0x3FABCDEF, OverlayGeometry.multiplyAlpha(0x80ABCDEF, 127));
+        assertEquals(0x00ABCDEF, OverlayGeometry.multiplyAlpha(0xFFABCDEF, 0));
     }
 }

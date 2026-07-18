@@ -5,6 +5,7 @@ import java.lang.reflect.Field;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.gui.GuiControls;
+import net.minecraft.client.gui.GuiIngameMenu;
 import net.minecraft.client.gui.GuiLanguage;
 import net.minecraft.client.gui.GuiOptions;
 import net.minecraft.client.gui.GuiScreen;
@@ -125,7 +126,7 @@ public final class ClientEventHandler {
     private void updateHostScreen(Minecraft minecraft) {
         GuiScreen current = minecraft.currentScreen;
         if (current instanceof OverlayHostScreen) {
-            if (!ClipboardOverlay.INSTANCE.isAvailable()) {
+            if (!ClipboardOverlay.INSTANCE.isAvailable() || isOverlaySuppressed(current)) {
                 ClipboardOverlay.INSTANCE.cancelLayoutEdit();
                 ((OverlayHostScreen) current).restoreDelegate();
             }
@@ -194,7 +195,8 @@ public final class ClientEventHandler {
 
     public static boolean isOverlaySuppressed(GuiScreen screen) {
         GuiScreen delegate = screen instanceof OverlayHostScreen ? ((OverlayHostScreen) screen).getDelegate() : screen;
-        return delegate instanceof GuiOptions || delegate instanceof GuiControls
+        return delegate instanceof GuiIngameMenu || delegate instanceof GuiOptions
+            || delegate instanceof GuiControls
             || delegate instanceof GuiVideoSettings
             || delegate instanceof GuiLanguage
             || delegate instanceof GuiScreenOptionsSounds

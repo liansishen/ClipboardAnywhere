@@ -8,43 +8,28 @@ public final class OverlayGeometry {
     public static final int ROW_HEIGHT = 14;
     public static final int FOOTER_HEIGHT = 18;
     public static final int LOGICAL_HEIGHT = HEADER_HEIGHT + TITLE_HEIGHT + ROW_HEIGHT * 9 + FOOTER_HEIGHT;
-    public static final int NORMAL_LOGICAL_HEIGHT = LOGICAL_HEIGHT - HEADER_HEIGHT;
     public static final int COLLAPSED_SIZE = 10;
 
     private int anchorRight;
     private int top;
     private double scale;
-    private final boolean headerVisible;
 
     public OverlayGeometry(int anchorRight, int top, double scale, int screenWidth, int screenHeight) {
-        this(anchorRight, top, scale, screenWidth, screenHeight, false, true);
+        this(anchorRight, top, scale, screenWidth, screenHeight, false);
     }
 
     public OverlayGeometry(int anchorRight, int top, double scale, int screenWidth, int screenHeight,
         boolean collapsed) {
-        this(anchorRight, top, scale, screenWidth, screenHeight, collapsed, true);
-    }
-
-    public OverlayGeometry(int anchorRight, int top, double scale, int screenWidth, int screenHeight, boolean collapsed,
-        boolean headerVisible) {
         this.anchorRight = anchorRight < 0 ? screenWidth - 8 : anchorRight;
         this.top = top;
         this.scale = clamp(scale, 0.5D, 2.0D);
-        this.headerVisible = headerVisible;
         if (collapsed) clampCollapsedToScreen(screenWidth, screenHeight);
         else clampToScreen(screenWidth, screenHeight);
     }
 
     public static OverlayGeometry fromEdges(boolean fromRight, boolean fromBottom, int horizontalOffset,
-        int verticalOffset, double scale, int screenWidth, int screenHeight, boolean collapsed, boolean headerVisible) {
-        OverlayGeometry geometry = new OverlayGeometry(
-            screenWidth,
-            0,
-            scale,
-            screenWidth,
-            screenHeight,
-            collapsed,
-            headerVisible);
+        int verticalOffset, double scale, int screenWidth, int screenHeight, boolean collapsed) {
+        OverlayGeometry geometry = new OverlayGeometry(screenWidth, 0, scale, screenWidth, screenHeight, collapsed);
         int width = collapsed ? geometry.getCollapsedRenderedSize() : geometry.getRenderedWidth();
         int height = collapsed ? geometry.getCollapsedRenderedSize() : geometry.getRenderedHeight();
         int offsetX = Math.max(0, horizontalOffset);
@@ -69,7 +54,7 @@ public final class OverlayGeometry {
     }
 
     public int getLogicalHeight() {
-        return headerVisible ? LOGICAL_HEIGHT : NORMAL_LOGICAL_HEIGHT;
+        return LOGICAL_HEIGHT;
     }
 
     public int getLeft() {
@@ -103,6 +88,17 @@ public final class OverlayGeometry {
 
     public int toLogicalY(int screenY) {
         return (int) Math.floor((screenY - top) / scale);
+    }
+
+    public static int checkboxRowAt(int logicalX, int logicalY, int taskStart, int taskCount) {
+        if (logicalX < 4 || logicalX >= 16 || logicalY < taskStart || logicalY >= taskStart + ROW_HEIGHT * taskCount)
+            return -1;
+        return (logicalY - taskStart) / ROW_HEIGHT;
+    }
+
+    public static int multiplyAlpha(int color, int opacityAlpha) {
+        int alpha = (color >>> 24) * clamp(opacityAlpha, 0, 255) / 255;
+        return alpha << 24 | color & 0x00FFFFFF;
     }
 
     public void setPosition(int anchorRight, int top, int screenWidth, int screenHeight) {

@@ -63,6 +63,7 @@ public final class ClipboardOverlay {
     private int dragTopOffset;
     private int resizeLeft;
     private int resizeTop;
+    private int foregroundAlpha = 255;
 
     private ClipboardOverlay() {}
 
@@ -77,10 +78,6 @@ public final class ClipboardOverlay {
     }
 
     public OverlayGeometry geometry(int screenWidth, int screenHeight) {
-        return geometry(screenWidth, screenHeight, true);
-    }
-
-    private OverlayGeometry geometry(int screenWidth, int screenHeight, boolean interactive) {
         if (draggingOverlay && draggedGeometry != null) {
             if (draggingCollapsed) draggedGeometry.clampCollapsedToScreen(screenWidth, screenHeight);
             else draggedGeometry.clampToScreen(screenWidth, screenHeight);
@@ -98,8 +95,7 @@ public final class ClipboardOverlay {
                 Config.scale,
                 screenWidth,
                 screenHeight,
-                collapsed,
-                true);
+                collapsed);
             saveLayout(legacyGeometry, screenWidth, screenHeight, collapsed, Config.opacity);
             return OverlayGeometry.fromEdges(
                 Config.anchorFromRight,
@@ -109,8 +105,7 @@ public final class ClipboardOverlay {
                 Config.scale,
                 screenWidth,
                 screenHeight,
-                collapsed,
-                interactive);
+                collapsed);
         }
         return OverlayGeometry.fromEdges(
             Config.anchorFromRight,
@@ -120,13 +115,12 @@ public final class ClipboardOverlay {
             Config.scale,
             screenWidth,
             screenHeight,
-            collapsed,
-            interactive);
+            collapsed);
     }
 
     public void render(int screenWidth, int screenHeight, int mouseX, int mouseY, boolean interactive) {
         if (!isAvailable()) return;
-        OverlayGeometry geometry = geometry(screenWidth, screenHeight, interactive);
+        OverlayGeometry geometry = geometry(screenWidth, screenHeight);
         if (layoutEditing) {
             Gui.drawRect(0, 0, screenWidth, screenHeight, 0x884A4A4A);
         }
@@ -263,9 +257,9 @@ public final class ClipboardOverlay {
         if (!active.getStatus()
             .isReadable()) return true;
         int taskStart = OverlayGeometry.HEADER_HEIGHT + OverlayGeometry.TITLE_HEIGHT;
-        if (y >= taskStart && y < taskStart + OverlayGeometry.ROW_HEIGHT * 9) {
-            int row = (y - taskStart) / OverlayGeometry.ROW_HEIGHT;
-            NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), ClipboardAction.CYCLE_TASK, row));
+        int taskRow = OverlayGeometry.checkboxRowAt(x, y, taskStart, ClipboardPageSnapshot.TASK_COUNT);
+        if (taskRow >= 0) {
+            NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), ClipboardAction.CYCLE_TASK, taskRow));
             return true;
         }
         int footerTop = OverlayGeometry.LOGICAL_HEIGHT - OverlayGeometry.FOOTER_HEIGHT;
@@ -371,7 +365,7 @@ public final class ClipboardOverlay {
 
     public void beginLayoutEdit(int screenWidth, int screenHeight) {
         if (!isAvailable() || Config.collapsed || layoutEditing) return;
-        layoutGeometry = geometry(screenWidth, screenHeight, true);
+        layoutGeometry = geometry(screenWidth, screenHeight);
         layoutOpacity = Config.opacity;
         layoutEditing = true;
         dropdownOpen = false;
@@ -482,10 +476,11 @@ public final class ClipboardOverlay {
         Minecraft minecraft = Minecraft.getMinecraft();
         FontRenderer font = minecraft.fontRenderer;
         double opacity = layoutEditing ? layoutOpacity : Config.opacity;
+        foregroundAlpha = (int) Math.round(opacity * 255.0D);
         int alpha = (int) (opacity * 255.0D) << 24;
         int panel = alpha | 0x050505;
         int header = alpha | 0x111111;
-        int border = ((int) (Math.min(1.0D, opacity + 0.15D) * 255.0D) << 24) | 0x626262;
+        int border = alpha | 0x626262;
         int stripe = (int) (opacity * 0.35D * 255.0D) << 24;
         int footer = (int) (opacity * 0.75D * 255.0D) << 24;
         Gui.drawRect(0, 0, OverlayGeometry.LOGICAL_WIDTH, logicalHeight, border);
@@ -501,7 +496,7 @@ public final class ClipboardOverlay {
             page.getTitle()
                 .isEmpty() ? " " : page.getTitle(),
             OverlayGeometry.LOGICAL_WIDTH - 18);
-        int contentTop = headerVisible ? OverlayGeometry.HEADER_HEIGHT : 0;
+        int contentTop = OverlayGeometry.HEADER_HEIGHT;
         drawCentered(font, title, contentTop + 4, 0xFFE8E8E8);
         int taskTop = contentTop + OverlayGeometry.TITLE_HEIGHT;
         for (int row = 0; row < ClipboardPageSnapshot.TASK_COUNT; row++) {
@@ -535,14 +530,18 @@ public final class ClipboardOverlay {
         boolean readable = active.getStatus()
             .isReadable();
         String suffix = readable ? "" : " [!]";
-        font.drawStringWithShadow(trim(font, active.getDisplayName() + suffix, DROPDOWN_WIDTH - 8), 5, 5, 0xFFFFFFFF);
+        font.drawStringWithShadow(
+            trim(font, active.getDisplayName() + suffix, DROPDOWN_WIDTH - 8),
+            5,
+            5,
+            fade(0xFFFFFFFF));
         if (layoutEditing) {
             String label = StatCollector.translateToLocal("gui.clipboardanywhere.drag_title");
             font.drawStringWithShadow(
                 trim(font, label, OverlayGeometry.LOGICAL_WIDTH - DROPDOWN_WIDTH - 8),
                 DROPDOWN_WIDTH,
                 5,
-                0xFFD8E0E3);
+                fade(0xFFD8E0E3));
             return;
         }
         drawOutline(1, 1, DROPDOWN_WIDTH, OverlayGeometry.HEADER_HEIGHT, 0xFF6A6A6A);
@@ -554,12 +553,12 @@ public final class ClipboardOverlay {
 
     private void drawTask(FontRenderer font, ClipboardPageSnapshot page, int row, int y, boolean enabled) {
         int state = page.getTaskState(row);
-        int boxColor = enabled ? 0xFFC8C8C8 : 0xFF666666;
+        int boxColor = fade(enabled ? 0xFFC8C8C8 : 0xFF666666);
         Gui.drawRect(6, y + 3, 14, y + 11, boxColor);
-        Gui.drawRect(7, y + 4, 13, y + 10, 0xFF080808);
-        if (state == 1) drawCheckMark(y, enabled ? 0xFF79D88C : 0xFF777C7E);
-        if (state == 2) drawTaskX(y, enabled ? 0xFFE77878 : 0xFF777C7E);
-        int textColor = enabled ? 0xFFE8ECEC : 0xFF8C9294;
+        Gui.drawRect(7, y + 4, 13, y + 10, fade(0xFF080808));
+        if (state == 1) drawCheckMark(y, fade(enabled ? 0xFF79D88C : 0xFF777C7E));
+        if (state == 2) drawTaskX(y, fade(enabled ? 0xFFE77878 : 0xFF777C7E));
+        int textColor = fade(enabled ? 0xFFE8ECEC : 0xFF8C9294);
         font.drawString(trim(font, page.getTask(row), OverlayGeometry.LOGICAL_WIDTH - 26), 20, y + 3, textColor);
     }
 
@@ -584,15 +583,15 @@ public final class ClipboardOverlay {
         Gui.drawRect(1, y, OverlayGeometry.LOGICAL_WIDTH - 1, logicalHeight - 1, background);
         int color = active.getStatus()
             .isReadable() ? 0xFFFFFFFF : 0xFF777C7E;
-        font.drawStringWithShadow("<", 9, y + 5, color);
-        font.drawStringWithShadow(">", OverlayGeometry.LOGICAL_WIDTH - 14, y + 5, color);
+        font.drawStringWithShadow("<", 9, y + 5, fade(color));
+        font.drawStringWithShadow(">", OverlayGeometry.LOGICAL_WIDTH - 14, y + 5, fade(color));
         String pageNumber = page.getCurrentPage() + " / " + page.getTotalPages();
         if (!active.getStatus()
             .isReadable()) {
             String status = StatCollector.translateToLocal("status.clipboardanywhere.disconnected");
             int pageX = OverlayGeometry.LOGICAL_WIDTH - 20 - font.getStringWidth(pageNumber);
-            font.drawStringWithShadow(trim(font, status, Math.max(12, pageX - 22)), 22, y + 5, 0xFFFFC66D);
-            font.drawStringWithShadow(pageNumber, pageX, y + 5, color);
+            font.drawStringWithShadow(trim(font, status, Math.max(12, pageX - 22)), 22, y + 5, fade(0xFFFFC66D));
+            font.drawStringWithShadow(pageNumber, pageX, y + 5, fade(color));
         } else {
             drawCentered(font, pageNumber, y + 5, color);
         }
@@ -604,16 +603,16 @@ public final class ClipboardOverlay {
         dropdownOffset = clamp(dropdownOffset, 0, Math.max(0, bindings.size() - MAX_DROPDOWN_ROWS));
         int visibleRows = Math.min(MAX_DROPDOWN_ROWS, bindings.size() - dropdownOffset);
         int bottom = OverlayGeometry.HEADER_HEIGHT + visibleRows * OverlayGeometry.ROW_HEIGHT;
-        Gui.drawRect(0, OverlayGeometry.HEADER_HEIGHT, DROPDOWN_WIDTH + 1, bottom + 1, 0xFF6A6A6A);
-        Gui.drawRect(1, OverlayGeometry.HEADER_HEIGHT + 1, DROPDOWN_WIDTH, bottom, 0xF0080808);
+        Gui.drawRect(0, OverlayGeometry.HEADER_HEIGHT, DROPDOWN_WIDTH + 1, bottom + 1, fade(0xFF6A6A6A));
+        Gui.drawRect(1, OverlayGeometry.HEADER_HEIGHT + 1, DROPDOWN_WIDTH, bottom, fade(0xF0080808));
         for (int row = 0; row < visibleRows; row++) {
             BindingView binding = bindings.get(dropdownOffset + row);
             int y = OverlayGeometry.HEADER_HEIGHT + row * OverlayGeometry.ROW_HEIGHT;
             if (mouseX >= 1 && mouseX < DROPDOWN_WIDTH && mouseY >= y && mouseY < y + OverlayGeometry.ROW_HEIGHT) {
-                Gui.drawRect(2, y + 1, DROPDOWN_WIDTH - 1, y + OverlayGeometry.ROW_HEIGHT, 0xFF292929);
+                Gui.drawRect(2, y + 1, DROPDOWN_WIDTH - 1, y + OverlayGeometry.ROW_HEIGHT, fade(0xFF292929));
             }
             int color = binding.getStatus()
-                .isReadable() ? 0xFFFFFFFF : 0xFF9B9FA1;
+                .isReadable() ? fade(0xFFFFFFFF) : fade(0xFF9B9FA1);
             String label = binding.getDisplayName() + (binding.getStatus()
                 .isReadable() ? "" : " [!]");
             font.drawString(trim(font, label, DROPDOWN_WIDTH - 10), 5, y + 3, color);
@@ -630,6 +629,7 @@ public final class ClipboardOverlay {
                 OverlayGeometry.LOGICAL_WIDTH - 18),
             48,
             0xFFFFFFFF);
+        renameField.setTextColor(fade(0xFFE8E8E8));
         renameField.drawTextBox();
         drawModalButtons(
             font,
@@ -660,8 +660,8 @@ public final class ClipboardOverlay {
     }
 
     private void drawModalFrame() {
-        Gui.drawRect(4, 36, OverlayGeometry.LOGICAL_WIDTH - 4, 116, 0xF0000000);
-        Gui.drawRect(5, 37, OverlayGeometry.LOGICAL_WIDTH - 5, 115, 0xF0181818);
+        Gui.drawRect(4, 36, OverlayGeometry.LOGICAL_WIDTH - 4, 116, fade(0xF0000000));
+        Gui.drawRect(5, 37, OverlayGeometry.LOGICAL_WIDTH - 5, 115, fade(0xF0181818));
     }
 
     private void drawModalButtons(FontRenderer font, String confirm, String cancel) {
@@ -672,13 +672,13 @@ public final class ClipboardOverlay {
             confirmBounds.y,
             confirmBounds.x + confirmBounds.width,
             confirmBounds.y + confirmBounds.height,
-            0xFF363636);
+            fade(0xFF363636));
         Gui.drawRect(
             cancelBounds.x,
             cancelBounds.y,
             cancelBounds.x + cancelBounds.width,
             cancelBounds.y + cancelBounds.height,
-            0xFF282828);
+            fade(0xFF282828));
         drawCenteredIn(font, trim(font, confirm, confirmBounds.width - 4), confirmBounds, 0xFFFFFFFF);
         drawCenteredIn(font, trim(font, cancel, cancelBounds.width - 4), cancelBounds, 0xFFFFFFFF);
     }
@@ -706,8 +706,8 @@ public final class ClipboardOverlay {
             : shortcutTooltip(key, shortcutKey);
         int width = font.getStringWidth(text) + 8;
         int x = Math.max(2, Math.min(mouseX, OverlayGeometry.LOGICAL_WIDTH - width - 2));
-        Gui.drawRect(x, 20, x + width, 34, 0xE0101214);
-        font.drawString(text, x + 4, 23, 0xFFFFFFFF);
+        Gui.drawRect(x, 20, x + width, 34, fade(0xE0101214));
+        font.drawString(text, x + 4, 23, fade(0xFFFFFFFF));
     }
 
     private void drawContentTooltip(BindingView active, OverlayGeometry geometry, int screenWidth, int screenHeight,
@@ -806,36 +806,40 @@ public final class ClipboardOverlay {
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
-    private static void drawOutline(int left, int top, int right, int bottom, int color) {
+    private void drawOutline(int left, int top, int right, int bottom, int color) {
+        color = fade(color);
         Gui.drawRect(left, top, right, top + 1, color);
         Gui.drawRect(left, bottom - 1, right, bottom, color);
         Gui.drawRect(left, top, left + 1, bottom, color);
         Gui.drawRect(right - 1, top, right, bottom, color);
     }
 
-    private static void drawPencilIcon(int x, int y, int color) {
+    private void drawPencilIcon(int x, int y, int color) {
+        color = fade(color);
         for (int offset = 0; offset < 7; offset++) {
             Gui.drawRect(x + 3 + offset, y + 12 - offset, x + 5 + offset, y + 14 - offset, color);
         }
-        Gui.drawRect(x + 2, y + 13, x + 4, y + 15, 0xFFE6C27A);
+        Gui.drawRect(x + 2, y + 13, x + 4, y + 15, fade(0xFFE6C27A));
     }
 
-    private static void drawXIcon(int x, int y, int color) {
+    private void drawXIcon(int x, int y, int color) {
+        color = fade(color);
         for (int offset = 0; offset < 7; offset++) {
             Gui.drawRect(x + 4 + offset, y + 5 + offset, x + 6 + offset, y + 7 + offset, color);
             Gui.drawRect(x + 10 - offset, y + 5 + offset, x + 12 - offset, y + 7 + offset, color);
         }
     }
 
-    private static void drawGearIcon(int x, int y, int color) {
+    private void drawGearIcon(int x, int y, int color) {
+        color = fade(color);
         Gui.drawRect(x + 4, y + 4, x + 9, y + 14, color);
         Gui.drawRect(x + 2, y + 6, x + 11, y + 12, color);
         Gui.drawRect(x + 1, y + 8, x + 12, y + 10, color);
-        Gui.drawRect(x + 5, y + 7, x + 8, y + 11, 0xFF111111);
+        Gui.drawRect(x + 5, y + 7, x + 8, y + 11, fade(0xFF111111));
     }
 
-    private static void drawCollapseIcon(int x, int y, int color) {
-        Gui.drawRect(x + 3, y + 11, x + 12, y + 13, color);
+    private void drawCollapseIcon(int x, int y, int color) {
+        Gui.drawRect(x + 3, y + 11, x + 12, y + 13, fade(color));
     }
 
     private void drawOpacitySlider(FontRenderer font, int background, int logicalHeight) {
@@ -844,23 +848,24 @@ public final class ClipboardOverlay {
         int left = OPACITY_SLIDER_LEFT;
         int right = OverlayGeometry.LOGICAL_WIDTH - OPACITY_SLIDER_RIGHT_MARGIN;
         int centerY = footerTop + 9;
-        Gui.drawRect(left, centerY - 1, right, centerY + 1, 0xFF899398);
+        Gui.drawRect(left, centerY - 1, right, centerY + 1, fade(0xFF899398));
         int knobX = left + (int) Math
             .round((layoutOpacity - Config.MIN_OPACITY) / (Config.MAX_OPACITY - Config.MIN_OPACITY) * (right - left));
-        Gui.drawRect(knobX - 2, centerY - 5, knobX + 3, centerY + 6, 0xFFE8ECEC);
+        Gui.drawRect(knobX - 2, centerY - 5, knobX + 3, centerY + 6, fade(0xFFE8ECEC));
         font.drawStringWithShadow(
             StatCollector.translateToLocal("gui.clipboardanywhere.opacity"),
             5,
             footerTop + 5,
-            0xFFFFFFFF);
+            fade(0xFFFFFFFF));
     }
 
     private void drawResizeHandle(int logicalHeight) {
         int right = OverlayGeometry.LOGICAL_WIDTH;
         int bottom = logicalHeight;
-        Gui.drawRect(right - 7, bottom - 2, right - 1, bottom - 1, 0xFFE8ECEC);
-        Gui.drawRect(right - 4, bottom - 5, right - 1, bottom - 3, 0xFFE8ECEC);
-        Gui.drawRect(right - 2, bottom - 8, right - 1, bottom - 6, 0xFFE8ECEC);
+        int color = fade(0xFFE8ECEC);
+        Gui.drawRect(right - 7, bottom - 2, right - 1, bottom - 1, color);
+        Gui.drawRect(right - 4, bottom - 5, right - 1, bottom - 3, color);
+        Gui.drawRect(right - 2, bottom - 8, right - 1, bottom - 6, color);
     }
 
     private void drawLayoutButtons(int screenWidth, int mouseX, int mouseY) {
@@ -877,11 +882,16 @@ public final class ClipboardOverlay {
             bounds.y,
             bounds.x + bounds.width,
             bounds.y + bounds.height,
-            hovered ? 0xFF4A4A4A : 0xFF303030);
-        Gui.drawRect(bounds.x + 1, bounds.y + 1, bounds.x + bounds.width - 1, bounds.y + bounds.height - 1, 0xFF111111);
+            fade(hovered ? 0xFF4A4A4A : 0xFF303030));
+        Gui.drawRect(
+            bounds.x + 1,
+            bounds.y + 1,
+            bounds.x + bounds.width - 1,
+            bounds.y + bounds.height - 1,
+            fade(0xFF111111));
         int x = bounds.x + (bounds.width - font.getStringWidth(text)) / 2;
         int y = bounds.y + (bounds.height - 8) / 2;
-        font.drawStringWithShadow(text, x, y, 0xFFFFFFFF);
+        font.drawStringWithShadow(text, x, y, fade(0xFFFFFFFF));
     }
 
     private void handleLayoutMousePressed(int screenWidth, int screenHeight, int mouseX, int mouseY, int button) {
@@ -995,14 +1005,22 @@ public final class ClipboardOverlay {
         return font.trimStringToWidth(text, Math.max(0, width - font.getStringWidth(ellipsis))) + ellipsis;
     }
 
-    private static void drawCentered(FontRenderer font, String text, int y, int color) {
-        font.drawStringWithShadow(text, (OverlayGeometry.LOGICAL_WIDTH - font.getStringWidth(text)) / 2, y, color);
+    private void drawCentered(FontRenderer font, String text, int y, int color) {
+        font.drawStringWithShadow(
+            text,
+            (OverlayGeometry.LOGICAL_WIDTH - font.getStringWidth(text)) / 2,
+            y,
+            fade(color));
     }
 
-    private static void drawCenteredIn(FontRenderer font, String text, Rect bounds, int color) {
+    private void drawCenteredIn(FontRenderer font, String text, Rect bounds, int color) {
         int x = bounds.x + (bounds.width - font.getStringWidth(text)) / 2;
         int y = bounds.y + (bounds.height - 8) / 2;
-        font.drawString(text, x, y, color);
+        font.drawString(text, x, y, fade(color));
+    }
+
+    private int fade(int color) {
+        return OverlayGeometry.multiplyAlpha(color, foregroundAlpha);
     }
 
     private static int clamp(int value, int min, int max) {

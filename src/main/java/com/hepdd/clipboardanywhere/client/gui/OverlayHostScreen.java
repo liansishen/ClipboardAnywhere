@@ -27,18 +27,33 @@ public final class OverlayHostScreen extends GuiScreen {
 
     @Override
     public void initGui() {
-        delegate.setWorldAndResolution(mc, width, height);
+        boolean exposed = exposeDelegate();
+        try {
+            delegate.setWorldAndResolution(mc, width, height);
+        } finally {
+            restoreHost(exposed);
+        }
     }
 
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        delegate.drawScreen(mouseX, mouseY, partialTicks);
-        ClipboardOverlay.INSTANCE.render(width, height, mouseX, mouseY, true);
+        boolean exposed = exposeDelegate();
+        try {
+            delegate.drawScreen(mouseX, mouseY, partialTicks);
+        } finally {
+            restoreHost(exposed);
+        }
+        if (mc.currentScreen == this) ClipboardOverlay.INSTANCE.render(width, height, mouseX, mouseY, true);
     }
 
     @Override
     public void updateScreen() {
-        delegate.updateScreen();
+        boolean exposed = exposeDelegate();
+        try {
+            delegate.updateScreen();
+        } finally {
+            restoreHost(exposed);
+        }
     }
 
     @Override
@@ -57,7 +72,14 @@ public final class OverlayHostScreen extends GuiScreen {
         } else if (!handled && Mouse.isButtonDown(0)) {
             handled = ClipboardOverlay.INSTANCE.mouseDragged(width, height, mouseX, mouseY, 0);
         }
-        if (!handled) delegate.handleMouseInput();
+        if (!handled) {
+            boolean exposed = exposeDelegate();
+            try {
+                delegate.handleMouseInput();
+            } finally {
+                restoreHost(exposed);
+            }
+        }
     }
 
     @Override
@@ -68,7 +90,12 @@ public final class OverlayHostScreen extends GuiScreen {
             if (!ClientEventHandler.hasTextInputFocus(delegate) && ClipboardOverlay.INSTANCE.handleShortcut(keyCode))
                 return;
         }
-        delegate.handleKeyboardInput();
+        boolean exposed = exposeDelegate();
+        try {
+            delegate.handleKeyboardInput();
+        } finally {
+            restoreHost(exposed);
+        }
     }
 
     @Override
@@ -79,5 +106,15 @@ public final class OverlayHostScreen extends GuiScreen {
     @Override
     public void onGuiClosed() {
         if (!restored) delegate.onGuiClosed();
+    }
+
+    private boolean exposeDelegate() {
+        if (mc.currentScreen != this) return false;
+        mc.currentScreen = delegate;
+        return true;
+    }
+
+    private void restoreHost(boolean exposed) {
+        if (exposed && mc.currentScreen == delegate) mc.currentScreen = this;
     }
 }
