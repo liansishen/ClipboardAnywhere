@@ -11,7 +11,7 @@ Clipboard Anywhere is a Forge mod for Minecraft 1.7.10 that adds a movable overl
 - Change pages and cycle task states from the overlay.
 - Keep a cached current page while a clipboard is disconnected.
 - Automatically reconnect clipboards that return to a readable inventory or loaded placed position.
-- Collapse the overlay to the BiblioCraft clipboard icon.
+- Collapse the overlay to a scaled BiblioCraft clipboard icon that can be clicked or dragged while the mouse is available.
 - Drag the overlay from its header during interaction mode, or proportionally resize and adjust its opacity in layout mode.
 - Persist world binding data and client layout settings.
 - Provide English and Simplified Chinese interface text.

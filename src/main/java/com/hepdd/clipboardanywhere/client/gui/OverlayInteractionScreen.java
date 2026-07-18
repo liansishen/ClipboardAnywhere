@@ -2,7 +2,6 @@ package com.hepdd.clipboardanywhere.client.gui;
 
 import net.minecraft.client.gui.GuiScreen;
 
-import com.hepdd.clipboardanywhere.Config;
 import com.hepdd.clipboardanywhere.client.ClientKeyBindings;
 
 public final class OverlayInteractionScreen extends GuiScreen {
@@ -36,10 +35,7 @@ public final class OverlayInteractionScreen extends GuiScreen {
     @Override
     protected void keyTyped(char character, int keyCode) {
         if (ClipboardOverlay.INSTANCE.keyTyped(character, keyCode)) return;
-        if (ClipboardOverlay.INSTANCE.handleShortcut(keyCode)) {
-            if (Config.collapsed) mc.displayGuiScreen(null);
-            return;
-        }
+        if (ClipboardOverlay.INSTANCE.handleShortcut(keyCode)) return;
         if (keyCode == ClientKeyBindings.TOGGLE_INTERACTION.getKeyCode()) {
             mc.displayGuiScreen(null);
             return;

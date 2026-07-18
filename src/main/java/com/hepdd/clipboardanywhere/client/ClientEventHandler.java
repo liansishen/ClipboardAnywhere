@@ -80,15 +80,16 @@ public final class ClientEventHandler {
             overlay.toggleCollapsed();
             return;
         }
+        if (ClientKeyBindings.TOGGLE_INTERACTION.isPressed()) {
+            toggleManualInteraction();
+            return;
+        }
         if (Config.collapsed) return;
         if (ClientKeyBindings.PREVIOUS_PAGE.isPressed()) {
             overlay.performActiveAction(ClipboardAction.PREVIOUS_PAGE);
         }
         if (ClientKeyBindings.NEXT_PAGE.isPressed()) {
             overlay.performActiveAction(ClipboardAction.NEXT_PAGE);
-        }
-        if (ClientKeyBindings.TOGGLE_INTERACTION.isPressed()) {
-            toggleManualInteraction();
         }
     }
 
@@ -131,7 +132,7 @@ public final class ClientEventHandler {
             return;
         }
         if (current instanceof OverlayInteractionScreen) {
-            if (!ClipboardOverlay.INSTANCE.isAvailable() || Config.collapsed) {
+            if (!ClipboardOverlay.INSTANCE.isAvailable()) {
                 ClipboardOverlay.INSTANCE.cancelLayoutEdit();
                 minecraft.displayGuiScreen(null);
             }

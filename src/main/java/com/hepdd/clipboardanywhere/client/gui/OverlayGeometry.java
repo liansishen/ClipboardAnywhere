@@ -15,10 +15,16 @@ public final class OverlayGeometry {
     private double scale;
 
     public OverlayGeometry(int anchorRight, int top, double scale, int screenWidth, int screenHeight) {
+        this(anchorRight, top, scale, screenWidth, screenHeight, false);
+    }
+
+    public OverlayGeometry(int anchorRight, int top, double scale, int screenWidth, int screenHeight,
+        boolean collapsed) {
         this.anchorRight = anchorRight < 0 ? screenWidth - 8 : anchorRight;
         this.top = top;
         this.scale = clamp(scale, 0.5D, 2.0D);
-        clampToScreen(screenWidth, screenHeight);
+        if (collapsed) clampCollapsedToScreen(screenWidth, screenHeight);
+        else clampToScreen(screenWidth, screenHeight);
     }
 
     public int getAnchorRight() {
@@ -46,7 +52,16 @@ public final class OverlayGeometry {
     }
 
     public int getCollapsedLeft() {
-        return anchorRight - COLLAPSED_SIZE;
+        return anchorRight - getCollapsedRenderedSize();
+    }
+
+    public int getCollapsedRenderedSize() {
+        return (int) Math.ceil(COLLAPSED_SIZE * scale);
+    }
+
+    public boolean containsCollapsed(int screenX, int screenY) {
+        int size = getCollapsedRenderedSize();
+        return screenX >= getCollapsedLeft() && screenX < anchorRight && screenY >= top && screenY < top + size;
     }
 
     public int toLogicalX(int screenX) {
@@ -61,6 +76,12 @@ public final class OverlayGeometry {
         this.anchorRight = anchorRight;
         this.top = top;
         clampToScreen(screenWidth, screenHeight);
+    }
+
+    public void setCollapsedPosition(int anchorRight, int top, int screenWidth, int screenHeight) {
+        this.anchorRight = anchorRight;
+        this.top = top;
+        clampCollapsedToScreen(screenWidth, screenHeight);
     }
 
     public void setScale(double scale, int screenWidth, int screenHeight) {
@@ -85,6 +106,12 @@ public final class OverlayGeometry {
         int renderedHeight = Math.min(screenHeight, getRenderedHeight());
         anchorRight = clamp(anchorRight, renderedWidth, screenWidth);
         top = clamp(top, 0, Math.max(0, screenHeight - renderedHeight));
+    }
+
+    public void clampCollapsedToScreen(int screenWidth, int screenHeight) {
+        int renderedSize = Math.min(Math.min(screenWidth, screenHeight), getCollapsedRenderedSize());
+        anchorRight = clamp(anchorRight, renderedSize, screenWidth);
+        top = clamp(top, 0, Math.max(0, screenHeight - renderedSize));
     }
 
     private static int clamp(int value, int min, int max) {

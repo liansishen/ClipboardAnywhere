@@ -39,9 +39,21 @@ public class OverlayGeometryTest {
     }
 
     @Test
-    public void collapsedIconKeepsFixedGuiSize() {
+    public void collapsedIconFollowsOverlayScale() {
         OverlayGeometry geometry = new OverlayGeometry(300, 12, 1.75D, 400, 400);
 
-        assertEquals(OverlayGeometry.COLLAPSED_SIZE, geometry.getAnchorRight() - geometry.getCollapsedLeft());
+        assertEquals(18, geometry.getCollapsedRenderedSize());
+        assertEquals(geometry.getCollapsedRenderedSize(), geometry.getAnchorRight() - geometry.getCollapsedLeft());
+    }
+
+    @Test
+    public void collapsedIconCanMoveAcrossTheWholeScreen() {
+        OverlayGeometry geometry = new OverlayGeometry(1, 500, 2.0D, 320, 240, true);
+
+        assertEquals(20, geometry.getAnchorRight());
+        assertEquals(220, geometry.getTop());
+        assertTrue(geometry.containsCollapsed(0, 220));
+        assertTrue(geometry.containsCollapsed(19, 239));
+        assertTrue(!geometry.containsCollapsed(20, 239));
     }
 }
