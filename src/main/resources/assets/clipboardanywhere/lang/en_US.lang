@@ -1,0 +1,27 @@
+key.categories.clipboardanywhere=Clipboard Anywhere
+key.clipboardanywhere.previous_page=Previous clipboard page
+key.clipboardanywhere.next_page=Next clipboard page
+key.clipboardanywhere.toggle_collapse=Collapse/expand clipboard overlay
+key.clipboardanywhere.toggle_interaction=Toggle clipboard interaction
+
+status.clipboardanywhere.disconnected=Disconnected
+tooltip.clipboardanywhere.rename=Rename binding
+tooltip.clipboardanywhere.unbind=Unbind clipboard
+tooltip.clipboardanywhere.layout=Edit overlay layout
+tooltip.clipboardanywhere.collapse=Collapse overlay
+gui.clipboardanywhere.rename=Rename clipboard binding
+gui.clipboardanywhere.unbind_confirm=Unbind this clipboard?
+gui.clipboardanywhere.unbind_keeps_content=The clipboard and its tasks will not be deleted.
+gui.clipboardanywhere.drag_title=Drag
+gui.clipboardanywhere.opacity=Opacity
+
+message.clipboardanywhere.all_disconnected=All bound clipboards are disconnected
+message.clipboardanywhere.bound=Clipboard bound
+message.clipboardanywhere.selected=Clipboard selected
+message.clipboardanywhere.renamed=Clipboard binding renamed
+message.clipboardanywhere.unbound=Clipboard unbound
+message.clipboardanywhere.invalid_binding=That clipboard binding is no longer available
+message.clipboardanywhere.invalid_name=Enter a valid clipboard name
+message.clipboardanywhere.invalid_action=Invalid clipboard action
+message.clipboardanywhere.disconnected=The clipboard is disconnected
+message.clipboardanywhere.action_unavailable=That clipboard action is unavailable
