@@ -1,5 +1,7 @@
 package com.hepdd.clipboardanywhere.clipboard;
 
+import java.util.Arrays;
+
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
@@ -11,6 +13,26 @@ import jds.bibliocraft.tileentities.TileEntityClipboard;
 public final class BiblioClipboardAdapter {
 
     private BiblioClipboardAdapter() {}
+
+    public static boolean ensureStructure(ItemStack stack) {
+        if (!ClipboardIdentity.isClipboard(stack)) return false;
+
+        boolean changed = !stack.hasTagCompound();
+        NBTTagCompound root = stack.hasTagCompound() ? stack.getTagCompound() : new NBTTagCompound();
+        int totalPages = Math.max(1, root.getInteger("totalPages"));
+        int currentPage = clamp(root.getInteger("currentPage"), 1, totalPages);
+        if (!root.hasKey("totalPages") || root.getInteger("totalPages") != totalPages) {
+            root.setInteger("totalPages", totalPages);
+            changed = true;
+        }
+        if (!root.hasKey("currentPage") || root.getInteger("currentPage") != currentPage) {
+            root.setInteger("currentPage", currentPage);
+            changed = true;
+        }
+        changed |= ensurePage(root, currentPage);
+        stack.setTagCompound(root);
+        return changed;
+    }
 
     public static ClipboardPageSnapshot read(ItemStack stack, long capturedAt) {
         if (!ClipboardIdentity.isClipboard(stack) || !stack.hasTagCompound()) {
@@ -49,16 +71,19 @@ public final class BiblioClipboardAdapter {
         if (!ClipboardIdentity.isClipboard(stack) || action == null) {
             return false;
         }
-        NBTTagCompound root = stack.hasTagCompound() ? stack.getTagCompound() : new NBTTagCompound();
+        ensureStructure(stack);
+        NBTTagCompound root = stack.getTagCompound();
         int totalPages = Math.max(1, root.getInteger("totalPages"));
         int currentPage = clamp(root.getInteger("currentPage"), 1, totalPages);
         switch (action) {
             case PREVIOUS_PAGE:
                 if (currentPage <= 1) return false;
+                ensurePage(root, currentPage - 1);
                 root.setInteger("currentPage", currentPage - 1);
                 break;
             case NEXT_PAGE:
                 if (currentPage >= totalPages) return false;
+                ensurePage(root, currentPage + 1);
                 root.setInteger("currentPage", currentPage + 1);
                 break;
             case CYCLE_TASK:
@@ -80,30 +105,46 @@ public final class BiblioClipboardAdapter {
         if (tile == null || action == null || !ClipboardIdentity.isClipboard(tile.getStackInSlot(0))) {
             return false;
         }
-        int selection;
-        switch (action) {
-            case PREVIOUS_PAGE:
-                if (tile.currentPage <= 1) return false;
-                selection = 10;
-                break;
-            case NEXT_PAGE:
-                if (tile.currentPage >= Math.max(1, tile.totalPages)) return false;
-                selection = 11;
-                break;
-            case CYCLE_TASK:
-                if (row < 0 || row >= ClipboardPageSnapshot.TASK_COUNT) return false;
-                selection = row;
-                break;
-            default:
-                return false;
-        }
-        tile.updateClipboardFromPlayerSelection(selection);
+        ItemStack stack = tile.getStackInSlot(0);
+        if (!apply(stack, action, row)) return false;
+        tile.getNBTData();
         tile.markDirty();
         if (tile.getWorldObj() != null) {
             tile.getWorldObj()
                 .markBlockForUpdate(tile.xCoord, tile.yCoord, tile.zCoord);
         }
         return true;
+    }
+
+    private static boolean ensurePage(NBTTagCompound root, int pageNumber) {
+        String pageKey = "page" + pageNumber;
+        boolean changed = !root.hasKey(pageKey);
+        NBTTagCompound page = root.getCompoundTag(pageKey);
+
+        int[] originalStates = page.getIntArray("taskStates");
+        int[] states = normalizeStates(originalStates);
+        if (!Arrays.equals(originalStates, states)) {
+            page.setIntArray("taskStates", states);
+            changed = true;
+        }
+
+        boolean hadTasks = page.hasKey("tasks");
+        NBTTagCompound tasks = page.getCompoundTag("tasks");
+        for (int row = 1; row <= ClipboardPageSnapshot.TASK_COUNT; row++) {
+            String key = "task" + row;
+            if (!tasks.hasKey(key)) {
+                tasks.setString(key, "");
+                changed = true;
+            }
+        }
+        if (!hadTasks) changed = true;
+        page.setTag("tasks", tasks);
+        if (!page.hasKey("title")) {
+            page.setString("title", "");
+            changed = true;
+        }
+        root.setTag(pageKey, page);
+        return changed;
     }
 
     private static int[] normalizeStates(int[] source) {

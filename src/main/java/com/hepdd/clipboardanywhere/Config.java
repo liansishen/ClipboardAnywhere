@@ -8,7 +8,7 @@ public class Config {
 
     private static Configuration configuration;
     public static int anchorRight = -1;
-    public static int anchorTop = 8;
+    public static int anchorTop = 36;
     public static double scale = 1.0D;
     public static double opacity = 0.85D;
     public static boolean collapsed;
@@ -18,8 +18,8 @@ public class Config {
         configuration.load();
         anchorRight = configuration.get("overlay", "anchorRight", -1)
             .getInt(-1);
-        anchorTop = configuration.get("overlay", "anchorTop", 8)
-            .getInt(8);
+        anchorTop = configuration.get("overlay", "anchorTop", 36)
+            .getInt(36);
         scale = clamp(
             configuration.get("overlay", "scale", 1.0D)
                 .getDouble(1.0D),
@@ -45,7 +45,7 @@ public class Config {
         opacity = clamp(newOpacity, 0.25D, 1.0D);
         configuration.get("overlay", "anchorRight", -1)
             .set(anchorRight);
-        configuration.get("overlay", "anchorTop", 8)
+        configuration.get("overlay", "anchorTop", 36)
             .set(anchorTop);
         configuration.get("overlay", "scale", 1.0D)
             .set(scale);

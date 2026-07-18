@@ -23,6 +23,10 @@ public final class ServerTargetResolver {
         for (int slot = 0; slot < player.inventory.mainInventory.length; slot++) {
             ItemStack stack = player.inventory.mainInventory[slot];
             if (id.equals(ClipboardIdentity.getId(stack))) {
+                if (BiblioClipboardAdapter.ensureStructure(stack)) {
+                    player.inventory.markDirty();
+                    player.inventoryContainer.detectAndSendChanges();
+                }
                 return ServerTarget.inventory(player, slot, stack, BiblioClipboardAdapter.read(stack, now));
             }
         }
@@ -42,6 +46,11 @@ public final class ServerTargetResolver {
         TileEntityClipboard tile = (TileEntityClipboard) rawTile;
         if (!id.equals(ClipboardIdentity.getId(tile.getStackInSlot(0)))) {
             return ServerTarget.disconnected(binding.getCachedPage());
+        }
+        if (BiblioClipboardAdapter.ensureStructure(tile.getStackInSlot(0))) {
+            tile.getNBTData();
+            tile.markDirty();
+            world.markBlockForUpdate(clipboard.getX(), clipboard.getY(), clipboard.getZ());
         }
         return ServerTarget.placed(tile, BiblioClipboardAdapter.read(tile, now));
     }

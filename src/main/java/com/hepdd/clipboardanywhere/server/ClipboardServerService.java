@@ -24,6 +24,7 @@ import com.hepdd.clipboardanywhere.model.ClipboardAction;
 import com.hepdd.clipboardanywhere.model.ClipboardPageSnapshot;
 import com.hepdd.clipboardanywhere.model.PlayerBindingSnapshot;
 import com.hepdd.clipboardanywhere.model.TargetStatus;
+import com.hepdd.clipboardanywhere.network.NetworkCodec;
 import com.hepdd.clipboardanywhere.network.NetworkHandler;
 import com.hepdd.clipboardanywhere.network.message.S2CBindingState;
 import com.hepdd.clipboardanywhere.network.message.S2COperationResult;
@@ -61,18 +62,25 @@ public final class ClipboardServerService {
         ItemStack held = player.getCurrentEquippedItem();
         if (!ClipboardIdentity.isClipboard(held)) return;
 
+        BiblioClipboardAdapter.ensureStructure(held);
+
         ClipboardWorldData data = ClipboardWorldData.get(player.worldObj);
         UUID id = ClipboardIdentity.getId(held);
         if (id != null && hasStableDuplicate(player, held, id, data)) {
             id = UUID.randomUUID();
         }
         if (id == null) id = UUID.randomUUID();
-        ClipboardIdentity.setId(held, id);
 
         long now = player.worldObj.getTotalWorldTime();
-        data.getOrCreateClipboard(id);
         PlayerBindings playerBindings = data.getOrCreatePlayer(player.getUniqueID());
         boolean created = !playerBindings.contains(id);
+        if (created && playerBindings.size() >= NetworkCodec.MAX_BINDINGS) {
+            sendFailureAndState(player, "message.clipboardanywhere.binding_limit");
+            return;
+        }
+
+        ClipboardIdentity.setId(held, id);
+        data.getOrCreateClipboard(id);
         if (created) {
             ClipboardPageSnapshot page = BiblioClipboardAdapter.read(held, now);
             playerBindings.put(new PlayerBindingRecord(id, defaultName(playerBindings, page), now, now, page));
@@ -148,6 +156,11 @@ public final class ClipboardServerService {
         TileEntity rawTile = world.getTileEntity(x, y, z);
         if (!(rawTile instanceof TileEntityClipboard)) return;
         TileEntityClipboard tile = (TileEntityClipboard) rawTile;
+        if (BiblioClipboardAdapter.ensureStructure(tile.getStackInSlot(0))) {
+            tile.getNBTData();
+            tile.markDirty();
+            world.markBlockForUpdate(x, y, z);
+        }
         UUID id = ClipboardIdentity.getId(tile.getStackInSlot(0));
         if (id == null) return;
         ClipboardWorldData data = ClipboardWorldData.get(world);

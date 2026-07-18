@@ -25,3 +25,4 @@ message.clipboardanywhere.invalid_name=请输入有效的写字板名称
 message.clipboardanywhere.invalid_action=无效的写字板操作
 message.clipboardanywhere.disconnected=写字板当前处于失联状态
 message.clipboardanywhere.action_unavailable=当前无法执行该写字板操作
+message.clipboardanywhere.binding_limit=绑定数量已达到上限

@@ -8,7 +8,6 @@ import com.hepdd.clipboardanywhere.network.NetworkCodec;
 import com.hepdd.clipboardanywhere.server.ClipboardServerService;
 import com.hepdd.clipboardanywhere.server.ServerTaskQueue;
 
-import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
@@ -29,13 +28,13 @@ public final class C2SRenameBinding implements IMessage {
     @Override
     public void fromBytes(ByteBuf buffer) {
         clipboardId = NetworkCodec.readUuid(buffer);
-        displayName = ByteBufUtils.readUTF8String(buffer);
+        displayName = NetworkCodec.readBoundedUtf8(buffer, NetworkCodec.MAX_DISPLAY_NAME_CHARS);
     }
 
     @Override
     public void toBytes(ByteBuf buffer) {
         NetworkCodec.writeUuid(buffer, clipboardId);
-        ByteBufUtils.writeUTF8String(buffer, displayName);
+        NetworkCodec.writeBoundedUtf8(buffer, displayName, NetworkCodec.MAX_DISPLAY_NAME_CHARS);
     }
 
     public static final class Handler implements IMessageHandler<C2SRenameBinding, IMessage> {

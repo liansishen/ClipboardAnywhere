@@ -78,6 +78,10 @@ public final class PlayerBindings {
         return bindings.isEmpty();
     }
 
+    public int size() {
+        return bindings.size();
+    }
+
     public NBTTagCompound writeToNbt() {
         NBTTagCompound tag = new NBTTagCompound();
         UuidNbt.write(tag, "playerId", playerId);

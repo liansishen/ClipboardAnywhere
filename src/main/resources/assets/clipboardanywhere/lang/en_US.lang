@@ -25,3 +25,4 @@ message.clipboardanywhere.invalid_name=Enter a valid clipboard name
 message.clipboardanywhere.invalid_action=Invalid clipboard action
 message.clipboardanywhere.disconnected=The clipboard is disconnected
 message.clipboardanywhere.action_unavailable=That clipboard action is unavailable
+message.clipboardanywhere.binding_limit=The clipboard binding limit has been reached

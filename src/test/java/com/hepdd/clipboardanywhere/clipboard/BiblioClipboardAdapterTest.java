@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.UUID;
+
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
@@ -13,6 +15,7 @@ import com.hepdd.clipboardanywhere.model.ClipboardAction;
 import com.hepdd.clipboardanywhere.model.ClipboardPageSnapshot;
 
 import jds.bibliocraft.items.ItemClipboard;
+import jds.bibliocraft.tileentities.TileEntityClipboard;
 
 public class BiblioClipboardAdapterTest {
 
@@ -44,6 +47,72 @@ public class BiblioClipboardAdapterTest {
         assertFalse(BiblioClipboardAdapter.apply(stack, ClipboardAction.NEXT_PAGE, -1));
         assertTrue(BiblioClipboardAdapter.apply(stack, ClipboardAction.PREVIOUS_PAGE, -1));
         assertFalse(BiblioClipboardAdapter.apply(stack, ClipboardAction.CYCLE_TASK, 9));
+    }
+
+    @Test
+    public void repairsIdentityOnlyClipboardWithoutLosingIdentity() {
+        ItemStack stack = new ItemStack(new ItemClipboard());
+        UUID id = UUID.randomUUID();
+        ClipboardIdentity.setId(stack, id);
+
+        assertTrue(BiblioClipboardAdapter.ensureStructure(stack));
+        assertEquals(id, ClipboardIdentity.getId(stack));
+        assertEquals(
+            1,
+            stack.getTagCompound()
+                .getInteger("currentPage"));
+        assertEquals(
+            1,
+            stack.getTagCompound()
+                .getInteger("totalPages"));
+        assertEquals(
+            ClipboardPageSnapshot.TASK_COUNT,
+            stack.getTagCompound()
+                .getCompoundTag("page1")
+                .getIntArray("taskStates").length);
+        assertFalse(BiblioClipboardAdapter.ensureStructure(stack));
+    }
+
+    @Test
+    public void repairsShortAndInvalidTaskStateArrays() {
+        ItemStack stack = new ItemStack(new ItemClipboard());
+        NBTTagCompound root = new NBTTagCompound();
+        root.setInteger("currentPage", 1);
+        root.setInteger("totalPages", 1);
+        NBTTagCompound malformedPage = new NBTTagCompound();
+        malformedPage.setIntArray("taskStates", new int[] { 2, 9 });
+        root.setTag("page1", malformedPage);
+        stack.setTagCompound(root);
+
+        assertTrue(BiblioClipboardAdapter.ensureStructure(stack));
+        int[] states = root.getCompoundTag("page1")
+            .getIntArray("taskStates");
+        assertEquals(ClipboardPageSnapshot.TASK_COUNT, states.length);
+        assertEquals(2, states[0]);
+        assertEquals(0, states[1]);
+    }
+
+    @Test
+    public void safelyMutatesFreshPlacedClipboard() {
+        ItemStack stack = new ItemStack(new ItemClipboard());
+        ClipboardIdentity.setId(stack, UUID.randomUUID());
+        TileEntityClipboard tile = new TileEntityClipboard();
+        setTileStack(tile, stack);
+
+        assertTrue(BiblioClipboardAdapter.apply(tile, ClipboardAction.CYCLE_TASK, 0));
+        assertEquals(1, tile.currentPage);
+        assertEquals(1, tile.totalPages);
+        assertEquals(1, tile.button0state);
+    }
+
+    private static void setTileStack(TileEntityClipboard tile, ItemStack stack) {
+        try {
+            java.lang.reflect.Field inventory = TileEntityClipboard.class.getDeclaredField("inventory");
+            inventory.setAccessible(true);
+            inventory.set(tile, new ItemStack[] { stack });
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError(exception);
+        }
     }
 
     private static NBTTagCompound page(String title, String task, int state) {

@@ -56,4 +56,44 @@ public class NetworkCodecTest {
             Arrays.asList(new BindingView(disconnectedId, "Lost", TargetStatus.DISCONNECTED, page)));
         assertTrue(lost.isAllDisconnected());
     }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsTooManyBindingsBeforeAllocatingList() {
+        ByteBuf buffer = Unpooled.buffer();
+        NetworkCodec.writeUuid(buffer, null);
+        buffer.writeShort(NetworkCodec.MAX_BINDINGS + 1);
+
+        NetworkCodec.readPlayerSnapshot(buffer);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsOversizedUtf8LengthBeforeReadingPayload() {
+        ByteBuf buffer = Unpooled.buffer();
+        cpw.mods.fml.common.network.ByteBufUtils.writeVarInt(buffer, NetworkCodec.MAX_DISPLAY_NAME_CHARS * 4 + 1, 2);
+
+        NetworkCodec.readBoundedUtf8(buffer, NetworkCodec.MAX_DISPLAY_NAME_CHARS);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsTruncatedUtf8Payload() {
+        ByteBuf buffer = Unpooled.buffer();
+        cpw.mods.fml.common.network.ByteBufUtils.writeVarInt(buffer, 4, 2);
+        buffer.writeByte('a');
+
+        NetworkCodec.readBoundedUtf8(buffer, NetworkCodec.MAX_DISPLAY_NAME_CHARS);
+    }
+
+    @Test
+    public void boundsOutgoingUtf8Text() {
+        char[] source = new char[NetworkCodec.MAX_DISPLAY_NAME_CHARS + 10];
+        Arrays.fill(source, 'x');
+        ByteBuf buffer = Unpooled.buffer();
+
+        NetworkCodec.writeBoundedUtf8(buffer, new String(source), NetworkCodec.MAX_DISPLAY_NAME_CHARS);
+
+        assertEquals(
+            NetworkCodec.MAX_DISPLAY_NAME_CHARS,
+            NetworkCodec.readBoundedUtf8(buffer, NetworkCodec.MAX_DISPLAY_NAME_CHARS)
+                .length());
+    }
 }
