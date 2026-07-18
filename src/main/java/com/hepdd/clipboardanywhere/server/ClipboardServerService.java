@@ -121,6 +121,12 @@ public final class ClipboardServerService {
             return;
         }
         long now = player.worldObj.getTotalWorldTime();
+        ServerTarget target = resolver.resolve(player, data.getClipboard(id), binding, now);
+        if (!target.getStatus()
+            .isReadable()) {
+            sendFailureAndState(player, "message.clipboardanywhere.disconnected");
+            return;
+        }
         binding.setDisplayName(name, now);
         data.markDirty();
         sendResult(player, true, "message.clipboardanywhere.renamed");
@@ -242,18 +248,11 @@ public final class ClipboardServerService {
             }
         }
 
-        UUID activeId = playerBindings.getActiveId();
-        TargetStatus activeStatus = statuses.get(activeId);
-        if (activeStatus != null && activeStatus.isReadable()) {
-            if (playerBindings.isKeepDisconnectedActive()) {
-                playerBindings.setKeepDisconnectedActive(false);
-                data.markDirty();
-            }
-        } else if (!playerBindings.isKeepDisconnectedActive() && firstReadable != null) {
-            playerBindings.setActiveId(firstReadable);
-            activeId = firstReadable;
-            data.markDirty();
-        }
+        UUID previousActiveId = playerBindings.getActiveId();
+        boolean previousKeepDisconnected = playerBindings.isKeepDisconnectedActive();
+        UUID activeId = reconcileActiveBinding(playerBindings, statuses, firstReadable);
+        if (!(previousActiveId == null ? activeId == null : previousActiveId.equals(activeId))
+            || previousKeepDisconnected != playerBindings.isKeepDisconnectedActive()) data.markDirty();
 
         List<BindingView> readable = new ArrayList<>();
         List<BindingView> disconnected = new ArrayList<>();
@@ -268,6 +267,18 @@ public final class ClipboardServerService {
         }
         readable.addAll(disconnected);
         return new PlayerBindingSnapshot(activeId, readable);
+    }
+
+    static UUID reconcileActiveBinding(PlayerBindings bindings, Map<UUID, TargetStatus> statuses, UUID firstReadable) {
+        UUID activeId = bindings.getActiveId();
+        TargetStatus activeStatus = statuses.get(activeId);
+        if (activeStatus != null && activeStatus.isReadable()) {
+            bindings.setKeepDisconnectedActive(false);
+        } else if (!bindings.isKeepDisconnectedActive() && firstReadable != null) {
+            bindings.setActiveId(firstReadable);
+            activeId = firstReadable;
+        }
+        return activeId;
     }
 
     private void sendFailureAndState(EntityPlayerMP player, String translationKey) {

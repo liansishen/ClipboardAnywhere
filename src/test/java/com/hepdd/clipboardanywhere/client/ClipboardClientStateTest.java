@@ -34,6 +34,19 @@ public class ClipboardClientStateTest {
 
         ClipboardClientState.INSTANCE.update(snapshot(id, TargetStatus.DISCONNECTED));
         assertNull(ClipboardClientState.INSTANCE.pollNotice());
+
+        ClipboardClientState.INSTANCE.update(snapshot(id, TargetStatus.READABLE_INVENTORY));
+        ClipboardClientState.INSTANCE.update(snapshot(id, TargetStatus.DISCONNECTED));
+        assertEquals(
+            "message.clipboardanywhere.all_disconnected",
+            ClipboardClientState.INSTANCE.pollNotice()
+                .getTranslationKey());
+    }
+
+    @Test
+    public void emptyBindingListDoesNotCountAsDisconnected() {
+        ClipboardClientState.INSTANCE.update(PlayerBindingSnapshot.EMPTY);
+        assertNull(ClipboardClientState.INSTANCE.pollNotice());
     }
 
     private static PlayerBindingSnapshot snapshot(UUID id, TargetStatus status) {

@@ -97,6 +97,11 @@ public final class ClipboardOverlay {
 
         int logicalMouseX = geometry.toLogicalX(mouseX);
         int logicalMouseY = geometry.toLogicalY(mouseY);
+        GL11.glPushAttrib(
+            GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT
+                | GL11.GL_DEPTH_BUFFER_BIT
+                | GL11.GL_LIGHTING_BIT
+                | GL11.GL_TEXTURE_BIT);
         GL11.glPushMatrix();
         GL11.glTranslated(geometry.getLeft(), geometry.getTop(), 0.0D);
         GL11.glScaled(geometry.getScale(), geometry.getScale(), 1.0D);
@@ -105,8 +110,10 @@ public final class ClipboardOverlay {
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         drawExpanded(active, logicalMouseX, logicalMouseY);
         GL11.glPopMatrix();
-        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
         if (layoutEditing) drawLayoutButtons(screenWidth, mouseX, mouseY);
+        else if (!isModalOpen()) drawContentTooltip(active, geometry, screenWidth, screenHeight, mouseX, mouseY);
+        GL11.glPopAttrib();
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
     public boolean mouseClicked(int screenWidth, int screenHeight, int mouseX, int mouseY, int button) {
@@ -162,7 +169,8 @@ public final class ClipboardOverlay {
                 return true;
             }
             if (x < DROPDOWN_WIDTH + ICON_WIDTH) {
-                beginRename(active);
+                if (active.getStatus()
+                    .isReadable()) beginRename(active);
                 return true;
             }
             if (x < DROPDOWN_WIDTH + ICON_WIDTH * 2) {
@@ -386,7 +394,7 @@ public final class ClipboardOverlay {
             return;
         }
         drawDropdownArrow(DROPDOWN_WIDTH - 9, 7, 0xFFD8E0E3);
-        drawPencilIcon(DROPDOWN_WIDTH, 0, 0xFFFFFFFF);
+        drawPencilIcon(DROPDOWN_WIDTH, 0, readable ? 0xFFFFFFFF : 0xFF777C7E);
         drawXIcon(DROPDOWN_WIDTH + ICON_WIDTH, 0, 0xFFFFB2B2);
         drawGearIcon(OverlayGeometry.LOGICAL_WIDTH - ICON_WIDTH * 2, 0, 0xFFD6E5EA);
         drawCollapseIcon(OverlayGeometry.LOGICAL_WIDTH - ICON_WIDTH, 0, 0xFFFFFFFF);
@@ -411,7 +419,6 @@ public final class ClipboardOverlay {
         font.drawStringWithShadow("<", 9, y + 5, color);
         font.drawStringWithShadow(">", OverlayGeometry.LOGICAL_WIDTH - 14, y + 5, color);
         String pageNumber = page.getCurrentPage() + " / " + page.getTotalPages();
-        drawCentered(font, pageNumber, y + 5, color);
         if (!active.getStatus()
             .isReadable()) {
             font.drawStringWithShadow(
@@ -419,6 +426,13 @@ public final class ClipboardOverlay {
                 31,
                 y + 5,
                 0xFFFFC66D);
+            font.drawStringWithShadow(
+                pageNumber,
+                OverlayGeometry.LOGICAL_WIDTH - 28 - font.getStringWidth(pageNumber),
+                y + 5,
+                color);
+        } else {
+            drawCentered(font, pageNumber, y + 5, color);
         }
     }
 
@@ -456,11 +470,13 @@ public final class ClipboardOverlay {
     private void drawUnbindModal(FontRenderer font) {
         drawModalFrame();
         drawCentered(font, StatCollector.translateToLocal("gui.clipboardanywhere.unbind_confirm"), 48, 0xFFFFD0D0);
-        drawCentered(
-            font,
+        List<String> lines = font.listFormattedStringToWidth(
             StatCollector.translateToLocal("gui.clipboardanywhere.unbind_keeps_content"),
-            62,
-            0xFFCED4D6);
+            OverlayGeometry.LOGICAL_WIDTH - 42);
+        for (int index = 0; index < Math.min(2, lines.size()); index++) {
+            String line = index == 1 && lines.size() > 2 ? trim(font, lines.get(index) + "...", 148) : lines.get(index);
+            drawCentered(font, line, 61 + index * 10, 0xFFCED4D6);
+        }
         drawModalButtons(font, StatCollector.translateToLocal("gui.yes"), StatCollector.translateToLocal("gui.no"));
     }
 
@@ -480,7 +496,10 @@ public final class ClipboardOverlay {
         if (mouseY < 0 || mouseY >= OverlayGeometry.HEADER_HEIGHT) return;
         String key = null;
         if (mouseX >= DROPDOWN_WIDTH && mouseX < DROPDOWN_WIDTH + ICON_WIDTH) {
-            key = "tooltip.clipboardanywhere.rename";
+            BindingView active = ClipboardClientState.INSTANCE.getSnapshot()
+                .getActiveBinding();
+            if (active != null && active.getStatus()
+                .isReadable()) key = "tooltip.clipboardanywhere.rename";
         } else if (mouseX < DROPDOWN_WIDTH + ICON_WIDTH * 2 && mouseX >= DROPDOWN_WIDTH + ICON_WIDTH) {
             key = "tooltip.clipboardanywhere.unbind";
         } else if (mouseX >= OverlayGeometry.LOGICAL_WIDTH - ICON_WIDTH * 2
@@ -497,11 +516,73 @@ public final class ClipboardOverlay {
         font.drawString(text, x + 4, 23, 0xFFFFFFFF);
     }
 
+    private void drawContentTooltip(BindingView active, OverlayGeometry geometry, int screenWidth, int screenHeight,
+        int mouseX, int mouseY) {
+        if (mouseX < 0 || mouseY < 0) return;
+        FontRenderer font = Minecraft.getMinecraft().fontRenderer;
+        int logicalX = geometry.toLogicalX(mouseX);
+        int logicalY = geometry.toLogicalY(mouseY);
+        if (logicalX < 0 || logicalX >= OverlayGeometry.LOGICAL_WIDTH
+            || logicalY < 0
+            || logicalY >= OverlayGeometry.LOGICAL_HEIGHT) return;
+
+        String text = null;
+        int availableWidth = 0;
+        if (dropdownOpen && logicalX < DROPDOWN_WIDTH && logicalY >= OverlayGeometry.HEADER_HEIGHT) {
+            List<BindingView> bindings = ClipboardClientState.INSTANCE.getSnapshot()
+                .getBindings();
+            int row = (logicalY - OverlayGeometry.HEADER_HEIGHT) / OverlayGeometry.ROW_HEIGHT;
+            int index = dropdownOffset + row;
+            if (row >= 0 && row < MAX_DROPDOWN_ROWS && index < bindings.size()) {
+                text = bindings.get(index)
+                    .getDisplayName();
+                availableWidth = DROPDOWN_WIDTH - 10;
+            }
+        } else if (logicalY < OverlayGeometry.HEADER_HEIGHT && logicalX < DROPDOWN_WIDTH) {
+            text = active.getDisplayName();
+            availableWidth = DROPDOWN_WIDTH - 14;
+        } else {
+            int taskStart = OverlayGeometry.HEADER_HEIGHT + OverlayGeometry.TITLE_HEIGHT;
+            if (logicalY >= taskStart && logicalY < taskStart + OverlayGeometry.ROW_HEIGHT * 9) {
+                int row = (logicalY - taskStart) / OverlayGeometry.ROW_HEIGHT;
+                text = active.getSnapshot()
+                    .getTask(row);
+                availableWidth = 164;
+            }
+        }
+        if (text == null || text.isEmpty() || font.getStringWidth(text) <= availableWidth) return;
+        drawWrappedTooltip(font, text, screenWidth, screenHeight, mouseX, mouseY);
+    }
+
+    private static void drawWrappedTooltip(FontRenderer font, String text, int screenWidth, int screenHeight,
+        int mouseX, int mouseY) {
+        int wrapWidth = Math.max(40, Math.min(320, screenWidth - 12));
+        List<String> lines = font.listFormattedStringToWidth(text, wrapWidth);
+        int width = 0;
+        for (String line : lines) {
+            width = Math.max(width, font.getStringWidth(line));
+        }
+        int height = lines.size() * 10 + 6;
+        int x = mouseX + 8;
+        if (x + width + 8 > screenWidth) x = mouseX - width - 8;
+        x = clamp(x, 2, Math.max(2, screenWidth - width - 6));
+        int y = clamp(mouseY + 8, 2, Math.max(2, screenHeight - height - 2));
+        Gui.drawRect(x, y, x + width + 6, y + height, 0xF0101214);
+        for (int index = 0; index < lines.size(); index++) {
+            font.drawString(lines.get(index), x + 3, y + 3 + index * 10, 0xFFFFFFFF);
+        }
+    }
+
     private void drawCollapsedIcon(OverlayGeometry geometry) {
         int left = geometry.getCollapsedLeft();
         int top = geometry.getTop();
         if (ItemLoader.clippy == null) return;
         Minecraft minecraft = Minecraft.getMinecraft();
+        GL11.glPushAttrib(
+            GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT
+                | GL11.GL_DEPTH_BUFFER_BIT
+                | GL11.GL_LIGHTING_BIT
+                | GL11.GL_TEXTURE_BIT);
         GL11.glPushMatrix();
         GL11.glTranslated(left, top, 0.0D);
         GL11.glScaled(OverlayGeometry.COLLAPSED_SIZE / 16.0D, OverlayGeometry.COLLAPSED_SIZE / 16.0D, 1.0D);
@@ -512,6 +593,7 @@ public final class ClipboardOverlay {
             0,
             0);
         GL11.glPopMatrix();
+        GL11.glPopAttrib();
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
     }
 

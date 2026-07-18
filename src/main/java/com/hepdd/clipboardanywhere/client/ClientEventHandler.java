@@ -1,8 +1,14 @@
 package com.hepdd.clipboardanywhere.client;
 
+import java.lang.reflect.Field;
+
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.GuiScreenBook;
+import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.gui.inventory.GuiEditSign;
 import net.minecraft.util.StatCollector;
 import net.minecraftforge.client.event.GuiScreenEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
@@ -60,6 +66,7 @@ public final class ClientEventHandler {
     public void onKeyInput(InputEvent.KeyInputEvent event) {
         ClipboardOverlay overlay = ClipboardOverlay.INSTANCE;
         if (!overlay.isAvailable() || overlay.isModalOpen() || overlay.isLayoutEditing()) return;
+        if (hasTextInputFocus(Minecraft.getMinecraft().currentScreen)) return;
         if (ClientKeyBindings.TOGGLE_COLLAPSE.isPressed()) {
             overlay.toggleCollapsed();
             return;
@@ -115,7 +122,7 @@ public final class ClientEventHandler {
             return;
         }
         if (current instanceof OverlayInteractionScreen) {
-            if (!ClipboardOverlay.INSTANCE.isAvailable()) {
+            if (!ClipboardOverlay.INSTANCE.isAvailable() || Config.collapsed) {
                 ClipboardOverlay.INSTANCE.cancelLayoutEdit();
                 minecraft.displayGuiScreen(null);
             }
@@ -147,5 +154,27 @@ public final class ClientEventHandler {
         } else if (noticeTicks > 0) {
             noticeTicks--;
         }
+    }
+
+    private static boolean hasTextInputFocus(GuiScreen screen) {
+        GuiScreen delegate = screen instanceof OverlayHostScreen ? ((OverlayHostScreen) screen).getDelegate() : screen;
+        if (delegate == null || delegate instanceof OverlayInteractionScreen) return false;
+        if (delegate instanceof GuiChat || delegate instanceof GuiScreenBook || delegate instanceof GuiEditSign)
+            return true;
+
+        for (Class<?> type = delegate.getClass(); type != null
+            && GuiScreen.class.isAssignableFrom(type); type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (!GuiTextField.class.isAssignableFrom(field.getType())) continue;
+                try {
+                    field.setAccessible(true);
+                    GuiTextField textField = (GuiTextField) field.get(delegate);
+                    if (textField != null && textField.isFocused()) return true;
+                } catch (IllegalAccessException | SecurityException ignored) {
+                    // Explicit vanilla text screens are handled above; inaccessible mod fields are skipped.
+                }
+            }
+        }
+        return false;
     }
 }
