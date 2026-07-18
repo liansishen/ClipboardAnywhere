@@ -7,7 +7,7 @@ import net.minecraftforge.common.config.Configuration;
 public class Config {
 
     public static final double DEFAULT_OPACITY = 0.5D;
-    public static final double MIN_OPACITY = 0.05D;
+    public static final double MIN_OPACITY = 0.10D;
     public static final double MAX_OPACITY = 1.0D;
     private static Configuration configuration;
     public static boolean anchorFromRight = true;
@@ -15,7 +15,8 @@ public class Config {
     public static int horizontalOffset = 8;
     public static int verticalOffset = 36;
     public static double scale = 1.0D;
-    public static double opacity = DEFAULT_OPACITY;
+    public static double backgroundOpacity = DEFAULT_OPACITY;
+    public static double textOpacity = DEFAULT_OPACITY;
     public static boolean collapsed;
     private static boolean legacyPositionPending;
     private static int legacyAnchorRight = -1;
@@ -58,11 +59,27 @@ public class Config {
                 .getDouble(1.0D),
             0.5D,
             2.0D);
-        opacity = clamp(
-            configuration.get("overlay", "opacity", DEFAULT_OPACITY)
-                .getDouble(DEFAULT_OPACITY),
+        double legacyOpacity = configuration.getCategory("overlay")
+            .containsKey("opacity")
+                ? configuration.get("overlay", "opacity", DEFAULT_OPACITY)
+                    .getDouble(DEFAULT_OPACITY)
+                : DEFAULT_OPACITY;
+        backgroundOpacity = clamp(
+            configuration.get("overlay", "backgroundOpacity", legacyOpacity)
+                .getDouble(legacyOpacity),
             MIN_OPACITY,
             MAX_OPACITY);
+        textOpacity = clamp(
+            configuration.get("overlay", "textOpacity", legacyOpacity)
+                .getDouble(legacyOpacity),
+            MIN_OPACITY,
+            MAX_OPACITY);
+        configuration.getCategory("overlay")
+            .remove("opacity");
+        configuration.get("overlay", "backgroundOpacity", DEFAULT_OPACITY)
+            .set(backgroundOpacity);
+        configuration.get("overlay", "textOpacity", DEFAULT_OPACITY)
+            .set(textOpacity);
         collapsed = configuration.get("overlay", "collapsed", false)
             .getBoolean(false);
 
@@ -72,13 +89,14 @@ public class Config {
     }
 
     public static void saveLayout(boolean fromRight, boolean fromBottom, int newHorizontalOffset, int newVerticalOffset,
-        double newScale, double newOpacity) {
+        double newScale, double newBackgroundOpacity, double newTextOpacity) {
         anchorFromRight = fromRight;
         anchorFromBottom = fromBottom;
         horizontalOffset = Math.max(0, newHorizontalOffset);
         verticalOffset = Math.max(0, newVerticalOffset);
         scale = clamp(newScale, 0.5D, 2.0D);
-        opacity = clamp(newOpacity, MIN_OPACITY, MAX_OPACITY);
+        backgroundOpacity = clamp(newBackgroundOpacity, MIN_OPACITY, MAX_OPACITY);
+        textOpacity = clamp(newTextOpacity, MIN_OPACITY, MAX_OPACITY);
         legacyPositionPending = false;
         configuration.getCategory("overlay")
             .remove("anchorRight");
@@ -94,8 +112,12 @@ public class Config {
             .set(verticalOffset);
         configuration.get("overlay", "scale", 1.0D)
             .set(scale);
-        configuration.get("overlay", "opacity", DEFAULT_OPACITY)
-            .set(opacity);
+        configuration.getCategory("overlay")
+            .remove("opacity");
+        configuration.get("overlay", "backgroundOpacity", DEFAULT_OPACITY)
+            .set(backgroundOpacity);
+        configuration.get("overlay", "textOpacity", DEFAULT_OPACITY)
+            .set(textOpacity);
         configuration.save();
     }
 

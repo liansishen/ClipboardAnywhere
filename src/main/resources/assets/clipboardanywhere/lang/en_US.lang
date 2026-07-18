@@ -16,7 +16,8 @@ gui.clipboardanywhere.rename=Rename clipboard binding
 gui.clipboardanywhere.unbind_confirm=Unbind this clipboard?
 gui.clipboardanywhere.unbind_keeps_content=The clipboard and its tasks will not be deleted.
 gui.clipboardanywhere.drag_title=Drag
-gui.clipboardanywhere.opacity=Opacity
+gui.clipboardanywhere.background_opacity=BG
+gui.clipboardanywhere.text_opacity=Text
 
 message.clipboardanywhere.all_disconnected=All bound clipboards are disconnected
 message.clipboardanywhere.bound=Clipboard bound

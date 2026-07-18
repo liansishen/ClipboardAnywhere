@@ -113,4 +113,15 @@ public class OverlayGeometryTest {
         assertEquals(0x3FABCDEF, OverlayGeometry.multiplyAlpha(0x80ABCDEF, 127));
         assertEquals(0x00ABCDEF, OverlayGeometry.multiplyAlpha(0xFFABCDEF, 0));
     }
+
+    @Test
+    public void layoutOpacitySlidersReplaceLastTaskAndFooter() {
+        int lastTaskTop = OverlayGeometry.HEADER_HEIGHT + OverlayGeometry.TITLE_HEIGHT + OverlayGeometry.ROW_HEIGHT * 8;
+        int footerTop = OverlayGeometry.LOGICAL_HEIGHT - OverlayGeometry.FOOTER_HEIGHT;
+
+        assertEquals(-1, OverlayGeometry.layoutOpacitySliderAt(lastTaskTop - 1, 9));
+        assertEquals(0, OverlayGeometry.layoutOpacitySliderAt(lastTaskTop, 9));
+        assertEquals(1, OverlayGeometry.layoutOpacitySliderAt(footerTop, 9));
+        assertEquals(-1, OverlayGeometry.layoutOpacitySliderAt(OverlayGeometry.LOGICAL_HEIGHT, 9));
+    }
 }

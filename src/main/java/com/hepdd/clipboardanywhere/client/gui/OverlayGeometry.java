@@ -101,6 +101,14 @@ public final class OverlayGeometry {
         return alpha << 24 | color & 0x00FFFFFF;
     }
 
+    public static int layoutOpacitySliderAt(int logicalY, int taskCount) {
+        int backgroundTop = HEADER_HEIGHT + TITLE_HEIGHT + ROW_HEIGHT * (taskCount - 1);
+        int footerTop = LOGICAL_HEIGHT - FOOTER_HEIGHT;
+        if (logicalY >= backgroundTop && logicalY < footerTop) return 0;
+        if (logicalY >= footerTop && logicalY < LOGICAL_HEIGHT) return 1;
+        return -1;
+    }
+
     public void setPosition(int anchorRight, int top, int screenWidth, int screenHeight) {
         this.anchorRight = anchorRight;
         this.top = top;
