@@ -11,19 +11,19 @@ public final class ClientKeyBindings {
     public static final String CATEGORY = "key.categories.clipboardanywhere";
     public static final KeyBinding PREVIOUS_PAGE = new KeyBinding(
         "key.clipboardanywhere.previous_page",
-        Keyboard.KEY_NONE,
+        Keyboard.KEY_PRIOR,
         CATEGORY);
     public static final KeyBinding NEXT_PAGE = new KeyBinding(
         "key.clipboardanywhere.next_page",
-        Keyboard.KEY_NONE,
+        Keyboard.KEY_NEXT,
         CATEGORY);
     public static final KeyBinding TOGGLE_COLLAPSE = new KeyBinding(
         "key.clipboardanywhere.toggle_collapse",
-        Keyboard.KEY_NONE,
+        Keyboard.KEY_V,
         CATEGORY);
     public static final KeyBinding TOGGLE_INTERACTION = new KeyBinding(
         "key.clipboardanywhere.toggle_interaction",
-        Keyboard.KEY_NONE,
+        Keyboard.KEY_B,
         CATEGORY);
 
     private ClientKeyBindings() {}

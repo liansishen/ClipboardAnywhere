@@ -26,7 +26,7 @@ BiblioCraft is a required runtime dependency and is not bundled in the produced 
 
 ## Controls
 
-The previous-page, next-page, collapse/expand, and interaction-mode actions are available in Minecraft's Controls menu. Their default keys are currently unbound so they do not conflict with an existing modpack configuration.
+The previous-page, next-page, collapse/expand, and interaction-mode actions default to Page Up, Page Down, V, and B. All four bindings can be changed in Minecraft's Controls menu.
 
 To bind the clipboard currently in hand, sneak and right-click air. Open the interaction mode to use overlay controls when no other GUI is open. When another GUI is already open, the overlay accepts mouse input directly.
 
