@@ -12,4 +12,10 @@ public class ClientProxy extends CommonProxy {
         Minecraft.getMinecraft()
             .func_152344_a(() -> ClipboardClientState.INSTANCE.update(snapshot));
     }
+
+    @Override
+    public void handleOperationResult(final boolean success, final String translationKey) {
+        Minecraft.getMinecraft()
+            .func_152344_a(() -> ClipboardClientState.INSTANCE.addNotice(success, translationKey));
+    }
 }

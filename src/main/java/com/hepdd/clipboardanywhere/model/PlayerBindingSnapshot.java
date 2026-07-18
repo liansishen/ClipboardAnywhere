@@ -64,4 +64,18 @@ public final class PlayerBindingSnapshot {
         }
         return false;
     }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) return true;
+        if (!(other instanceof PlayerBindingSnapshot)) return false;
+        PlayerBindingSnapshot that = (PlayerBindingSnapshot) other;
+        return (activeId == null ? that.activeId == null : activeId.equals(that.activeId))
+            && bindings.equals(that.bindings);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * (activeId == null ? 0 : activeId.hashCode()) + bindings.hashCode();
+    }
 }

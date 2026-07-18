@@ -37,4 +37,5 @@ dependencies {
     //runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.7.69-GTNH:dev")
     devOnlyNonPublishable(rfg.deobf("curse.maven:bibliocraft-228027:2423369"))
     testImplementation("junit:junit:4.13.2")
+    testImplementation(rfg.deobf("curse.maven:bibliocraft-228027:2423369"))
 }

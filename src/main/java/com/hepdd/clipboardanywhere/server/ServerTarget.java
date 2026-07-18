@@ -55,6 +55,19 @@ public final class ServerTarget {
             : status == TargetStatus.READABLE_PLACED ? tile.getStackInSlot(0) : null;
     }
 
+    public void identityChanged() {
+        if (status == TargetStatus.READABLE_INVENTORY) {
+            player.inventory.markDirty();
+            player.inventoryContainer.detectAndSendChanges();
+        } else if (status == TargetStatus.READABLE_PLACED) {
+            tile.markDirty();
+            if (tile.getWorldObj() != null) {
+                tile.getWorldObj()
+                    .markBlockForUpdate(tile.xCoord, tile.yCoord, tile.zCoord);
+            }
+        }
+    }
+
     public boolean apply(ClipboardAction action, int row) {
         if (status == TargetStatus.READABLE_INVENTORY) {
             boolean changed = BiblioClipboardAdapter.apply(itemStack, action, row);

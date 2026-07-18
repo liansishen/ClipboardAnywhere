@@ -33,6 +33,7 @@ public class ClipboardWorldDataTest {
             .setPlacedTarget(7, 1, 2, 3, 100L);
         PlayerBindings first = source.getOrCreatePlayer(firstPlayerId);
         first.put(new PlayerBindingRecord(clipboardId, "First", 10L, 20L, page));
+        first.setKeepDisconnectedActive(true);
         PlayerBindings second = source.getOrCreatePlayer(secondPlayerId);
         second.put(new PlayerBindingRecord(clipboardId, "Second", 11L, 21L, page));
 
@@ -50,6 +51,9 @@ public class ClipboardWorldDataTest {
             restored.getPlayer(firstPlayerId)
                 .get(clipboardId)
                 .getDisplayName());
+        assertTrue(
+            restored.getPlayer(firstPlayerId)
+                .isKeepDisconnectedActive());
         assertEquals(
             "Second",
             restored.getPlayer(secondPlayerId)

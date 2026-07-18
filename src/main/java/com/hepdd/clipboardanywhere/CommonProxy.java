@@ -1,7 +1,10 @@
 package com.hepdd.clipboardanywhere;
 
+import net.minecraftforge.common.MinecraftForge;
+
 import com.hepdd.clipboardanywhere.model.PlayerBindingSnapshot;
 import com.hepdd.clipboardanywhere.network.NetworkHandler;
+import com.hepdd.clipboardanywhere.server.ServerEventHandler;
 import com.hepdd.clipboardanywhere.server.ServerTaskQueue;
 
 import cpw.mods.fml.common.FMLCommonHandler;
@@ -18,6 +21,10 @@ public class CommonProxy {
         FMLCommonHandler.instance()
             .bus()
             .register(ServerTaskQueue.INSTANCE);
+        FMLCommonHandler.instance()
+            .bus()
+            .register(ServerEventHandler.INSTANCE);
+        MinecraftForge.EVENT_BUS.register(ServerEventHandler.INSTANCE);
         ClipboardAnywhere.LOG.info("{} starting, version {}", ClipboardAnywhere.NAME, Tags.VERSION);
     }
 
@@ -28,4 +35,6 @@ public class CommonProxy {
     public void serverStarting(FMLServerStartingEvent event) {}
 
     public void handleBindingState(PlayerBindingSnapshot snapshot) {}
+
+    public void handleOperationResult(boolean success, String translationKey) {}
 }
