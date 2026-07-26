@@ -8,7 +8,7 @@ import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.renderer.entity.RenderItem;
-import net.minecraft.client.settings.GameSettings;
+import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.StatCollector;
 
@@ -17,6 +17,7 @@ import org.lwjgl.opengl.GL11;
 import com.hepdd.clipboardanywhere.Config;
 import com.hepdd.clipboardanywhere.client.ClientKeyBindings;
 import com.hepdd.clipboardanywhere.client.ClipboardClientState;
+import com.hepdd.clipboardanywhere.client.KeyBindingDisplay;
 import com.hepdd.clipboardanywhere.model.BindingView;
 import com.hepdd.clipboardanywhere.model.ClipboardAction;
 import com.hepdd.clipboardanywhere.model.ClipboardPageSnapshot;
@@ -138,9 +139,7 @@ public final class ClipboardOverlay {
             if (geometry.containsCollapsed(mouseX, mouseY)) {
                 drawWrappedTooltip(
                     Minecraft.getMinecraft().fontRenderer,
-                    shortcutTooltip(
-                        "tooltip.clipboardanywhere.collapsed",
-                        ClientKeyBindings.TOGGLE_COLLAPSE.getKeyCode()),
+                    shortcutTooltip("tooltip.clipboardanywhere.collapsed", ClientKeyBindings.TOGGLE_COLLAPSE),
                     screenWidth,
                     screenHeight,
                     mouseX,
@@ -717,7 +716,7 @@ public final class ClipboardOverlay {
     private void drawHeaderTooltip(FontRenderer font, int mouseX, int mouseY) {
         if (mouseY < 0 || mouseY >= OverlayGeometry.HEADER_HEIGHT) return;
         String key = null;
-        int shortcutKey = Integer.MIN_VALUE;
+        KeyBinding shortcut = null;
         if (mouseX >= DROPDOWN_WIDTH && mouseX < DROPDOWN_WIDTH + ICON_WIDTH) {
             BindingView active = ClipboardClientState.INSTANCE.getSnapshot()
                 .getActiveBinding();
@@ -730,11 +729,10 @@ public final class ClipboardOverlay {
                 key = "tooltip.clipboardanywhere.layout";
             } else if (mouseX >= OverlayGeometry.LOGICAL_WIDTH - ICON_WIDTH) {
                 key = "tooltip.clipboardanywhere.collapse";
-                shortcutKey = ClientKeyBindings.TOGGLE_COLLAPSE.getKeyCode();
+                shortcut = ClientKeyBindings.TOGGLE_COLLAPSE;
             }
         if (key == null) return;
-        String text = shortcutKey == Integer.MIN_VALUE ? StatCollector.translateToLocal(key)
-            : shortcutTooltip(key, shortcutKey);
+        String text = shortcut == null ? StatCollector.translateToLocal(key) : shortcutTooltip(key, shortcut);
         int width = font.getStringWidth(text) + 8;
         int x = Math.max(2, Math.min(mouseX, OverlayGeometry.LOGICAL_WIDTH - width - 2));
         Gui.drawRect(x, 20, x + width, 34, 0xE0101214);
@@ -768,13 +766,11 @@ public final class ClipboardOverlay {
             text = active.getDisplayName();
             availableWidth = DROPDOWN_WIDTH - 8;
         } else if (logicalY >= OverlayGeometry.LOGICAL_HEIGHT - OverlayGeometry.FOOTER_HEIGHT && logicalX < 28) {
-            text = shortcutTooltip(
-                "tooltip.clipboardanywhere.previous_page",
-                ClientKeyBindings.PREVIOUS_PAGE.getKeyCode());
+            text = shortcutTooltip("tooltip.clipboardanywhere.previous_page", ClientKeyBindings.PREVIOUS_PAGE);
             alwaysShow = true;
         } else if (logicalY >= OverlayGeometry.LOGICAL_HEIGHT - OverlayGeometry.FOOTER_HEIGHT
             && logicalX >= OverlayGeometry.LOGICAL_WIDTH - 28) {
-                text = shortcutTooltip("tooltip.clipboardanywhere.next_page", ClientKeyBindings.NEXT_PAGE.getKeyCode());
+                text = shortcutTooltip("tooltip.clipboardanywhere.next_page", ClientKeyBindings.NEXT_PAGE);
                 alwaysShow = true;
             } else {
                 int taskStart = OverlayGeometry.HEADER_HEIGHT + OverlayGeometry.TITLE_HEIGHT;
@@ -789,8 +785,10 @@ public final class ClipboardOverlay {
         drawWrappedTooltip(font, text, screenWidth, screenHeight, mouseX, mouseY);
     }
 
-    private static String shortcutTooltip(String translationKey, int keyCode) {
-        return StatCollector.translateToLocal(translationKey) + " [" + GameSettings.getKeyDisplayString(keyCode) + "]";
+    private static String shortcutTooltip(String translationKey, KeyBinding binding) {
+        return StatCollector.translateToLocal(translationKey) + " ["
+            + KeyBindingDisplay.getDisplayString(binding)
+            + "]";
     }
 
     private static void drawWrappedTooltip(FontRenderer font, String text, int screenWidth, int screenHeight,

@@ -6,9 +6,11 @@ import net.minecraftforge.common.MinecraftForge;
 import com.hepdd.clipboardanywhere.client.ClientEventHandler;
 import com.hepdd.clipboardanywhere.client.ClientKeyBindings;
 import com.hepdd.clipboardanywhere.client.ClipboardClientState;
+import com.hepdd.clipboardanywhere.client.ModularUiInputCompat;
 import com.hepdd.clipboardanywhere.model.PlayerBindingSnapshot;
 
 import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.Loader;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 
 public class ClientProxy extends CommonProxy {
@@ -21,6 +23,7 @@ public class ClientProxy extends CommonProxy {
             .bus()
             .register(ClientEventHandler.INSTANCE);
         MinecraftForge.EVENT_BUS.register(ClientEventHandler.INSTANCE);
+        if (Loader.isModLoaded("modularui2")) MinecraftForge.EVENT_BUS.register(ModularUiInputCompat.INSTANCE);
     }
 
     @Override
