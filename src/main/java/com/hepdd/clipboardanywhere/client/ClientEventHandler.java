@@ -35,6 +35,7 @@ import com.hepdd.clipboardanywhere.network.message.C2SRequestState;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.InputEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
+import jds.bibliocraft.gui.GuiBiblioTextField;
 
 public final class ClientEventHandler {
 
@@ -110,7 +111,7 @@ public final class ClientEventHandler {
                 minecraft,
                 minecraft.displayWidth,
                 minecraft.displayHeight);
-            ClipboardOverlay.INSTANCE.render(resolution.getScaledWidth(), resolution.getScaledHeight(), -1, -1, false);
+            ClipboardOverlay.INSTANCE.render(resolution.getScaledWidth(), resolution.getScaledHeight(), -1, -1);
             renderNotice(resolution.getScaledWidth(), resolution.getScaledHeight());
         }
     }
@@ -118,7 +119,7 @@ public final class ClientEventHandler {
     @SubscribeEvent
     public void onGuiDraw(GuiScreenEvent.DrawScreenEvent.Post event) {
         if (shouldUseOverlay(event.gui)) {
-            ClipboardOverlay.INSTANCE.render(event.gui.width, event.gui.height, event.mouseX, event.mouseY, true);
+            ClipboardOverlay.INSTANCE.render(event.gui.width, event.gui.height, event.mouseX, event.mouseY);
         }
         renderNotice(event.gui.width, event.gui.height);
     }
@@ -160,11 +161,15 @@ public final class ClientEventHandler {
         for (Class<?> type = screen.getClass(); type != null
             && GuiScreen.class.isAssignableFrom(type); type = type.getSuperclass()) {
             for (Field field : type.getDeclaredFields()) {
-                if (!GuiTextField.class.isAssignableFrom(field.getType())) continue;
+                Class<?> fieldType = field.getType();
+                if (!GuiTextField.class.isAssignableFrom(fieldType)
+                    && !GuiBiblioTextField.class.isAssignableFrom(fieldType)) continue;
                 try {
                     field.setAccessible(true);
-                    GuiTextField textField = (GuiTextField) field.get(screen);
-                    if (textField != null && textField.isFocused()) return true;
+                    Object textField = field.get(screen);
+                    if (textField instanceof GuiTextField && ((GuiTextField) textField).isFocused()) return true;
+                    if (textField instanceof GuiBiblioTextField && ((GuiBiblioTextField) textField).isFocused())
+                        return true;
                 } catch (IllegalAccessException | SecurityException ignored) {
                     // Explicit vanilla text screens are handled above; inaccessible mod fields are skipped.
                 }

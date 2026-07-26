@@ -6,6 +6,8 @@ import java.lang.reflect.Method;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.settings.KeyBinding;
 
+import org.lwjgl.input.Keyboard;
+
 /** Displays optional modifier-aware key bindings without requiring the providing mod at runtime. */
 public final class KeyBindingDisplay {
 
@@ -15,7 +17,7 @@ public final class KeyBindingDisplay {
     private KeyBindingDisplay() {}
 
     public static String getDisplayString(KeyBinding binding) {
-        if (binding == null) return "";
+        if (binding == null || binding.getKeyCode() == Keyboard.KEY_NONE) return "NONE";
         String display = invokeDisplayMethod(GET_DISPLAY_NAME, binding);
         if (display == null) display = invokeDisplayMethod(GET_KEY_MODIFIER_NAME, binding);
         if (display != null) return display;

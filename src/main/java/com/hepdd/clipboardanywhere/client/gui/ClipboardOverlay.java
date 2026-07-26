@@ -12,6 +12,7 @@ import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.StatCollector;
 
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import com.hepdd.clipboardanywhere.Config;
@@ -128,7 +129,7 @@ public final class ClipboardOverlay {
             collapsed);
     }
 
-    public void render(int screenWidth, int screenHeight, int mouseX, int mouseY, boolean interactive) {
+    public void render(int screenWidth, int screenHeight, int mouseX, int mouseY) {
         if (!isAvailable()) return;
         OverlayGeometry geometry = geometry(screenWidth, screenHeight);
         if (layoutEditing) {
@@ -153,6 +154,7 @@ public final class ClipboardOverlay {
 
         int logicalMouseX = geometry.toLogicalX(mouseX);
         int logicalMouseY = geometry.toLogicalY(mouseY);
+        boolean controlsVisible = shouldShowControls(logicalMouseX, logicalMouseY);
         GL11.glPushAttrib(
             GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT
                 | GL11.GL_DEPTH_BUFFER_BIT
@@ -166,7 +168,7 @@ public final class ClipboardOverlay {
         GL11.glDepthMask(false);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        drawExpanded(active, logicalMouseX, logicalMouseY, interactive || layoutEditing, geometry.getLogicalHeight());
+        drawExpanded(active, logicalMouseX, logicalMouseY, controlsVisible, geometry.getLogicalHeight());
         GL11.glPopMatrix();
         if (layoutEditing) {
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
@@ -174,6 +176,13 @@ public final class ClipboardOverlay {
         } else if (!isModalOpen()) drawContentTooltip(active, geometry, screenWidth, screenHeight, mouseX, mouseY);
         GL11.glPopAttrib();
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    private boolean shouldShowControls(int logicalMouseX, int logicalMouseY) {
+        boolean hovered = logicalMouseX >= 0 && logicalMouseX < OverlayGeometry.LOGICAL_WIDTH
+            && logicalMouseY >= 0
+            && logicalMouseY < OverlayGeometry.LOGICAL_HEIGHT;
+        return layoutEditing || dropdownOpen || isModalOpen() || draggingOverlay || hovered;
     }
 
     public boolean mouseClicked(int screenWidth, int screenHeight, int mouseX, int mouseY, int button) {
@@ -266,7 +275,7 @@ public final class ClipboardOverlay {
 
         if (!active.getStatus()
             .isReadable()) return true;
-        int taskStart = OverlayGeometry.HEADER_HEIGHT + OverlayGeometry.TITLE_HEIGHT;
+        int taskStart = OverlayGeometry.HEADER_HEIGHT;
         int taskRow = OverlayGeometry.checkboxRowAt(x, y, taskStart, ClipboardPageSnapshot.TASK_COUNT);
         if (taskRow >= 0) {
             NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), ClipboardAction.CYCLE_TASK, taskRow));
@@ -326,7 +335,7 @@ public final class ClipboardOverlay {
     }
 
     public boolean handleShortcut(int keyCode) {
-        if (!isAvailable() || isModalOpen() || layoutEditing) return false;
+        if (!isAvailable() || isModalOpen() || layoutEditing || keyCode == Keyboard.KEY_NONE) return false;
         if (keyCode == ClientKeyBindings.TOGGLE_COLLAPSE.getKeyCode()) {
             toggleCollapsed();
             return true;
@@ -493,7 +502,7 @@ public final class ClipboardOverlay {
         draggedGeometry = null;
     }
 
-    private void drawExpanded(BindingView active, int mouseX, int mouseY, boolean headerVisible, int logicalHeight) {
+    private void drawExpanded(BindingView active, int mouseX, int mouseY, boolean controlsVisible, int logicalHeight) {
         Minecraft minecraft = Minecraft.getMinecraft();
         FontRenderer font = minecraft.fontRenderer;
         double backgroundOpacity = layoutEditing ? layoutBackgroundOpacity : Config.backgroundOpacity;
@@ -505,23 +514,22 @@ public final class ClipboardOverlay {
         int header = alpha | 0x111111;
         int border = alpha | 0x626262;
         int footer = (int) (backgroundOpacity * 0.75D * 255.0D) << 24;
-        int panelTop = headerVisible ? 0 : OverlayGeometry.HEADER_HEIGHT;
-        Gui.drawRect(0, panelTop, OverlayGeometry.LOGICAL_WIDTH, logicalHeight, border);
-        Gui.drawRect(1, panelTop + 1, OverlayGeometry.LOGICAL_WIDTH - 1, logicalHeight - 1, panel);
-        if (headerVisible) {
-            Gui.drawRect(1, 1, OverlayGeometry.LOGICAL_WIDTH - 1, OverlayGeometry.HEADER_HEIGHT, header);
-            drawHeader(font, active, mouseX, mouseY);
-        }
+        Gui.drawRect(0, 0, OverlayGeometry.LOGICAL_WIDTH, logicalHeight, border);
+        Gui.drawRect(1, 1, OverlayGeometry.LOGICAL_WIDTH - 1, logicalHeight - 1, panel);
 
         ClipboardPageSnapshot page = active.getSnapshot();
-        String title = trim(
-            font,
-            page.getTitle()
-                .isEmpty() ? " " : page.getTitle(),
-            OverlayGeometry.LOGICAL_WIDTH - 18);
-        int contentTop = OverlayGeometry.HEADER_HEIGHT;
-        drawCentered(font, title, contentTop + 4, 0xFFE8E8E8);
-        int taskTop = contentTop + OverlayGeometry.TITLE_HEIGHT;
+        if (controlsVisible) {
+            Gui.drawRect(1, 1, OverlayGeometry.LOGICAL_WIDTH - 1, OverlayGeometry.HEADER_HEIGHT, header);
+            drawHeader(font, active, mouseX, mouseY);
+        } else {
+            String title = trim(
+                font,
+                page.getTitle()
+                    .isEmpty() ? " " : page.getTitle(),
+                OverlayGeometry.LOGICAL_WIDTH - 18);
+            drawCentered(font, title, 5, 0xFFE8E8E8);
+        }
+        int taskTop = OverlayGeometry.HEADER_HEIGHT;
         int visibleTasks = layoutEditing ? ClipboardPageSnapshot.TASK_COUNT - 1 : ClipboardPageSnapshot.TASK_COUNT;
         for (int row = 0; row < visibleTasks; row++) {
             int y = taskTop + row * OverlayGeometry.ROW_HEIGHT;
@@ -540,7 +548,7 @@ public final class ClipboardOverlay {
             drawFooter(font, active, page, footer, logicalHeight);
         }
 
-        if (!layoutEditing && headerVisible) {
+        if (!layoutEditing && controlsVisible) {
             if (dropdownOpen) drawDropdown(font, mouseX, mouseY);
             if (renameField != null || pendingUnbindId != null) {
                 int previousBackgroundAlpha = backgroundAlpha;
@@ -773,7 +781,7 @@ public final class ClipboardOverlay {
                 text = shortcutTooltip("tooltip.clipboardanywhere.next_page", ClientKeyBindings.NEXT_PAGE);
                 alwaysShow = true;
             } else {
-                int taskStart = OverlayGeometry.HEADER_HEIGHT + OverlayGeometry.TITLE_HEIGHT;
+                int taskStart = OverlayGeometry.HEADER_HEIGHT;
                 if (logicalY >= taskStart && logicalY < taskStart + OverlayGeometry.ROW_HEIGHT * 9) {
                     int row = (logicalY - taskStart) / OverlayGeometry.ROW_HEIGHT;
                     text = active.getSnapshot()
@@ -822,7 +830,7 @@ public final class ClipboardOverlay {
                 | GL11.GL_TEXTURE_BIT);
         GL11.glPushMatrix();
         GL11.glTranslated(left, top, 0.0D);
-        double iconScale = OverlayGeometry.COLLAPSED_SIZE * geometry.getScale() / 16.0D;
+        double iconScale = OverlayGeometry.COLLAPSED_SIZE / 16.0D;
         GL11.glScaled(iconScale, iconScale, 1.0D);
         ITEM_RENDERER.renderItemAndEffectIntoGUI(
             minecraft.fontRenderer,

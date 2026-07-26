@@ -4,11 +4,10 @@ public final class OverlayGeometry {
 
     public static final int LOGICAL_WIDTH = 127;
     public static final int HEADER_HEIGHT = 18;
-    public static final int TITLE_HEIGHT = 16;
     public static final int ROW_HEIGHT = 14;
     public static final int FOOTER_HEIGHT = 18;
-    public static final int LOGICAL_HEIGHT = HEADER_HEIGHT + TITLE_HEIGHT + ROW_HEIGHT * 9 + FOOTER_HEIGHT;
-    public static final int COLLAPSED_SIZE = 10;
+    public static final int LOGICAL_HEIGHT = HEADER_HEIGHT + ROW_HEIGHT * 9 + FOOTER_HEIGHT;
+    public static final int COLLAPSED_SIZE = 8;
 
     private int anchorRight;
     private int top;
@@ -74,7 +73,7 @@ public final class OverlayGeometry {
     }
 
     public int getCollapsedRenderedSize() {
-        return (int) Math.ceil(COLLAPSED_SIZE * scale);
+        return COLLAPSED_SIZE;
     }
 
     public boolean containsCollapsed(int screenX, int screenY) {
@@ -102,7 +101,7 @@ public final class OverlayGeometry {
     }
 
     public static int layoutOpacitySliderAt(int logicalY, int taskCount) {
-        int backgroundTop = HEADER_HEIGHT + TITLE_HEIGHT + ROW_HEIGHT * (taskCount - 1);
+        int backgroundTop = HEADER_HEIGHT + ROW_HEIGHT * (taskCount - 1);
         int footerTop = LOGICAL_HEIGHT - FOOTER_HEIGHT;
         if (logicalY >= backgroundTop && logicalY < footerTop) return 0;
         if (logicalY >= footerTop && logicalY < LOGICAL_HEIGHT) return 1;
