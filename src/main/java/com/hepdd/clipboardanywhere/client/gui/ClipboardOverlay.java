@@ -372,16 +372,16 @@ public final class ClipboardOverlay {
 
     public boolean handleShortcut(int keyCode) {
         if (!isAvailable() || isModalOpen() || layoutEditing || keyCode == Keyboard.KEY_NONE) return false;
-        if (keyCode == ClientKeyBindings.TOGGLE_COLLAPSE.getKeyCode()) {
+        if (KeyBindingDisplay.isActiveAndMatches(ClientKeyBindings.TOGGLE_COLLAPSE, keyCode)) {
             toggleCollapsed();
             return true;
         }
         if (Config.collapsed) return false;
-        if (keyCode == ClientKeyBindings.PREVIOUS_PAGE.getKeyCode()) {
+        if (KeyBindingDisplay.isActiveAndMatches(ClientKeyBindings.PREVIOUS_PAGE, keyCode)) {
             performActiveAction(ClipboardAction.PREVIOUS_PAGE);
             return true;
         }
-        if (keyCode == ClientKeyBindings.NEXT_PAGE.getKeyCode()) {
+        if (KeyBindingDisplay.isActiveAndMatches(ClientKeyBindings.NEXT_PAGE, keyCode)) {
             performActiveAction(ClipboardAction.NEXT_PAGE);
             return true;
         }

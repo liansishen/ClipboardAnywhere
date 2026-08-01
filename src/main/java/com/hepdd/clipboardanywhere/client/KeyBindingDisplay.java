@@ -1,45 +1,26 @@
 package com.hepdd.clipboardanywhere.client;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.settings.KeyBinding;
 
 import org.lwjgl.input.Keyboard;
 
-/** Displays optional modifier-aware key bindings without requiring the providing mod at runtime. */
-public final class KeyBindingDisplay {
+import committee.nova.mkb.api.IKeyBinding;
 
-    private static final Method GET_DISPLAY_NAME = findMethod("getDisplayName");
-    private static final Method GET_KEY_MODIFIER_NAME = findMethod("getKeyModifierName");
+/** Uses ModernKeyBinding's modifier-aware API when the optional mod is installed. */
+public final class KeyBindingDisplay {
 
     private KeyBindingDisplay() {}
 
     public static String getDisplayString(KeyBinding binding) {
         if (binding == null || binding.getKeyCode() == Keyboard.KEY_NONE) return "NONE";
-        String display = invokeDisplayMethod(GET_DISPLAY_NAME, binding);
-        if (display == null) display = invokeDisplayMethod(GET_KEY_MODIFIER_NAME, binding);
-        if (display != null) return display;
+        if (binding instanceof IKeyBinding) return ((IKeyBinding) binding).getDisplayName();
         return GameSettings.getKeyDisplayString(binding.getKeyCode());
     }
 
-    private static Method findMethod(String name) {
-        try {
-            return KeyBinding.class.getMethod(name);
-        } catch (NoSuchMethodException | SecurityException ignored) {
-            return null;
-        }
-    }
-
-    private static String invokeDisplayMethod(Method method, KeyBinding binding) {
-        if (method == null) return null;
-        try {
-            Object value = method.invoke(binding);
-            if (value instanceof String && !((String) value).isEmpty()) return (String) value;
-        } catch (IllegalAccessException | InvocationTargetException ignored) {
-            // Fall back to the vanilla key name when the optional API is unavailable or fails.
-        }
-        return null;
+    public static boolean isActiveAndMatches(KeyBinding binding, int keyCode) {
+        if (binding == null || keyCode == Keyboard.KEY_NONE) return false;
+        if (binding instanceof IKeyBinding) return ((IKeyBinding) binding).isActiveAndMatches(keyCode);
+        return keyCode == binding.getKeyCode();
     }
 }
