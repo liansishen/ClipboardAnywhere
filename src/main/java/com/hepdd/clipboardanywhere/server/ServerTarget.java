@@ -55,6 +55,12 @@ public final class ServerTarget {
             : status == TargetStatus.READABLE_PLACED ? tile.getStackInSlot(0) : null;
     }
 
+    public ClipboardPageSnapshot readSnapshot(long capturedAt) {
+        if (status == TargetStatus.READABLE_INVENTORY) return BiblioClipboardAdapter.read(itemStack, capturedAt);
+        if (status == TargetStatus.READABLE_PLACED) return BiblioClipboardAdapter.read(tile, capturedAt);
+        return snapshot;
+    }
+
     public void identityChanged() {
         if (status == TargetStatus.READABLE_INVENTORY) {
             player.inventory.markDirty();
@@ -71,13 +77,26 @@ public final class ServerTarget {
     public boolean apply(ClipboardAction action, int row) {
         if (status == TargetStatus.READABLE_INVENTORY) {
             boolean changed = BiblioClipboardAdapter.apply(itemStack, action, row);
-            if (changed) {
-                player.inventory.setInventorySlotContents(inventorySlot, itemStack);
-                player.inventory.markDirty();
-                player.inventoryContainer.detectAndSendChanges();
-            }
+            if (changed) synchronizeInventory();
             return changed;
         }
         return status == TargetStatus.READABLE_PLACED && BiblioClipboardAdapter.apply(tile, action, row);
+    }
+
+    public boolean updateTaskText(int pageNumber, int row, String expectedText, String replacementText) {
+        if (status == TargetStatus.READABLE_INVENTORY) {
+            boolean changed = BiblioClipboardAdapter
+                .updateTaskText(itemStack, pageNumber, row, expectedText, replacementText);
+            if (changed) synchronizeInventory();
+            return changed;
+        }
+        return status == TargetStatus.READABLE_PLACED
+            && BiblioClipboardAdapter.updateTaskText(tile, pageNumber, row, expectedText, replacementText);
+    }
+
+    private void synchronizeInventory() {
+        player.inventory.setInventorySlotContents(inventorySlot, itemStack);
+        player.inventory.markDirty();
+        player.inventoryContainer.detectAndSendChanges();
     }
 }

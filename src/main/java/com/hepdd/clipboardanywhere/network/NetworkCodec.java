@@ -19,6 +19,7 @@ public final class NetworkCodec {
     public static final int MAX_DISPLAY_NAME_CHARS = 32;
     public static final int MAX_PAGE_TITLE_CHARS = 256;
     public static final int MAX_TASK_TEXT_CHARS = 1024;
+    public static final int MAX_EDIT_TASK_TEXT_CHARS = 23;
     public static final int MAX_TRANSLATION_KEY_CHARS = 128;
     private static final int MAX_UTF8_BYTES_PER_CHAR = 4;
 

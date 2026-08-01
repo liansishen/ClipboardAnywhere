@@ -8,6 +8,7 @@ import com.hepdd.clipboardanywhere.network.message.C2SRenameBinding;
 import com.hepdd.clipboardanywhere.network.message.C2SRequestState;
 import com.hepdd.clipboardanywhere.network.message.C2SSelectBinding;
 import com.hepdd.clipboardanywhere.network.message.C2SUnbind;
+import com.hepdd.clipboardanywhere.network.message.C2SUpdateTaskText;
 import com.hepdd.clipboardanywhere.network.message.S2CBindingState;
 import com.hepdd.clipboardanywhere.network.message.S2COperationResult;
 
@@ -34,6 +35,7 @@ public final class NetworkHandler {
         CHANNEL.registerMessage(C2SClipboardAction.Handler.class, C2SClipboardAction.class, 5, Side.SERVER);
         CHANNEL.registerMessage(S2COperationResult.Handler.class, S2COperationResult.class, 6, Side.CLIENT);
         CHANNEL.registerMessage(C2SBindHeldClipboard.Handler.class, C2SBindHeldClipboard.class, 7, Side.SERVER);
+        CHANNEL.registerMessage(C2SUpdateTaskText.Handler.class, C2SUpdateTaskText.class, 8, Side.SERVER);
     }
 
     public static void sendTo(IMessage message, EntityPlayerMP player) {

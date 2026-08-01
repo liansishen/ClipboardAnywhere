@@ -48,6 +48,7 @@ Clipboard Anywhere deliberately does **not** force-load dimensions or chunks. Cl
 - Use the gear icon to enter layout mode. Layout mode supports dragging, proportional scaling, separate background/text opacity sliders, confirm, and cancel.
 - Use the collapse icon to reduce the overlay to a fixed 8 × 8 icon. Click the icon to expand it or drag it to reposition it.
 - Click a task checkbox to cycle its BiblioCraft task state.
+- Click task text to edit it in place. Press Enter to save, Escape to cancel, or Tab/Shift+Tab to save and move between adjacent tasks. Task text follows BiblioCraft's 23-character limit.
 - Use the footer arrows to change pages.
 
 When no other GUI is open, assign and use **Toggle clipboard interaction** to open a non-pausing interaction screen. When a supported GUI is already open, the overlay accepts mouse input directly.
@@ -90,7 +91,7 @@ Clipboard identities, per-player bindings, names, active selections, and cached 
 - The overlay uses low-priority, optional GUI input hooks so custom GUI libraries can keep their own input handling.
 - When ModularUI2 is installed, Clipboard Anywhere uses its cancellable pre-input events instead of competing with its GUI redirects.
 - Minecraft options screens and known Angelica, Sodium/Reese, NotFine, and Iris configuration screens suppress the overlay to avoid obstructing their controls.
-- The physical BiblioCraft clipboard remains authoritative. Clipboard Anywhere does not replace BiblioCraft's text editor or modify task text from the overlay.
+- The physical BiblioCraft clipboard remains authoritative. The overlay can edit individual task text on the current page, but it does not replace BiblioCraft's full-page editor.
 
 ## Building
 

@@ -82,9 +82,10 @@ public final class BiblioClipboardAdapter {
                 root.setInteger("currentPage", currentPage - 1);
                 break;
             case NEXT_PAGE:
-                if (currentPage >= totalPages) return false;
-                ensurePage(root, currentPage + 1);
-                root.setInteger("currentPage", currentPage + 1);
+                int nextPage = currentPage + 1;
+                ensurePage(root, nextPage);
+                root.setInteger("currentPage", nextPage);
+                if (nextPage > totalPages) root.setInteger("totalPages", nextPage);
                 break;
             case CYCLE_TASK:
                 if (row < 0 || row >= ClipboardPageSnapshot.TASK_COUNT) return false;
@@ -107,13 +108,50 @@ public final class BiblioClipboardAdapter {
         }
         ItemStack stack = tile.getStackInSlot(0);
         if (!apply(stack, action, row)) return false;
+        synchronizeTile(tile);
+        return true;
+    }
+
+    public static boolean updateTaskText(ItemStack stack, int pageNumber, int row, String expectedText,
+        String replacementText) {
+        if (!ClipboardIdentity.isClipboard(stack) || row < 0 || row >= ClipboardPageSnapshot.TASK_COUNT) {
+            return false;
+        }
+        ensureStructure(stack);
+        NBTTagCompound root = stack.getTagCompound();
+        int totalPages = Math.max(1, root.getInteger("totalPages"));
+        if (pageNumber < 1 || pageNumber > totalPages) return false;
+        ensurePage(root, pageNumber);
+        NBTTagCompound page = root.getCompoundTag("page" + pageNumber);
+        NBTTagCompound tasks = page.getCompoundTag("tasks");
+        String key = "task" + (row + 1);
+        String currentText = tasks.getString(key);
+        if (expectedText == null || !currentText.equals(expectedText)) return false;
+        String value = replacementText == null ? "" : replacementText;
+        if (currentText.equals(value)) return true;
+        tasks.setString(key, value);
+        page.setTag("tasks", tasks);
+        root.setTag("page" + pageNumber, page);
+        stack.setTagCompound(root);
+        return true;
+    }
+
+    public static boolean updateTaskText(TileEntityClipboard tile, int pageNumber, int row, String expectedText,
+        String replacementText) {
+        if (tile == null || !ClipboardIdentity.isClipboard(tile.getStackInSlot(0))) return false;
+        ItemStack stack = tile.getStackInSlot(0);
+        if (!updateTaskText(stack, pageNumber, row, expectedText, replacementText)) return false;
+        synchronizeTile(tile);
+        return true;
+    }
+
+    private static void synchronizeTile(TileEntityClipboard tile) {
         tile.getNBTData();
         tile.markDirty();
         if (tile.getWorldObj() != null) {
             tile.getWorldObj()
                 .markBlockForUpdate(tile.xCoord, tile.yCoord, tile.zCoord);
         }
-        return true;
     }
 
     private static boolean ensurePage(NBTTagCompound root, int pageNumber) {
