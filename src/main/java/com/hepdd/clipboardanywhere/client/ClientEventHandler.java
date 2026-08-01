@@ -132,8 +132,15 @@ public final class ClientEventHandler {
     }
 
     public void renderNotice(int screenWidth, int screenHeight) {
-        if (noticeTicks <= 0 || noticeKey == null) return;
         Minecraft minecraft = Minecraft.getMinecraft();
+        if (minecraft.currentScreen instanceof OverlayInteractionScreen) {
+            String shortcut = KeyBindingDisplay.getDisplayString(ClientKeyBindings.TOGGLE_INTERACTION);
+            String text = StatCollector
+                .translateToLocalFormatted("message.clipboardanywhere.interaction_exit_hint", shortcut);
+            int x = (screenWidth - minecraft.fontRenderer.getStringWidth(text)) / 2;
+            minecraft.fontRenderer.drawStringWithShadow(text, x, screenHeight - 70, 0xFFFFFFFF);
+        }
+        if (noticeTicks <= 0 || noticeKey == null) return;
         String text = StatCollector.translateToLocal(noticeKey);
         int x = (screenWidth - minecraft.fontRenderer.getStringWidth(text)) / 2;
         int y = screenHeight - 58;

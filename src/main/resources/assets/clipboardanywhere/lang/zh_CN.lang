@@ -20,6 +20,7 @@ gui.clipboardanywhere.drag_title=拖动
 gui.clipboardanywhere.background_opacity=背景
 gui.clipboardanywhere.text_opacity=文字
 
+message.clipboardanywhere.interaction_exit_hint=按 %s 或 Esc 退出写字板交互模式
 message.clipboardanywhere.all_disconnected=所有绑定的写字板均已失联
 message.clipboardanywhere.bound=已绑定写字板
 message.clipboardanywhere.selected=已切换写字板

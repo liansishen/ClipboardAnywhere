@@ -604,12 +604,12 @@ public final class ClipboardOverlay {
         }
 
         if (!layoutEditing && controlsVisible) {
-            if (dropdownOpen) drawDropdown(font, mouseX, mouseY);
-            if (renameField != null || pendingUnbindId != null) {
+            if (dropdownOpen || renameField != null || pendingUnbindId != null) {
                 int previousBackgroundAlpha = backgroundAlpha;
                 int previousForegroundAlpha = foregroundAlpha;
                 backgroundAlpha = 255;
                 foregroundAlpha = 255;
+                if (dropdownOpen) drawDropdown(font, mouseX, mouseY);
                 if (renameField != null) drawRenameModal(font);
                 if (pendingUnbindId != null) drawUnbindModal(font);
                 backgroundAlpha = previousBackgroundAlpha;

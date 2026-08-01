@@ -20,6 +20,7 @@ gui.clipboardanywhere.drag_title=Drag
 gui.clipboardanywhere.background_opacity=BG
 gui.clipboardanywhere.text_opacity=Text
 
+message.clipboardanywhere.interaction_exit_hint=Press %s or Esc to exit clipboard interaction mode
 message.clipboardanywhere.all_disconnected=All bound clipboards are disconnected
 message.clipboardanywhere.bound=Clipboard bound
 message.clipboardanywhere.selected=Clipboard selected
