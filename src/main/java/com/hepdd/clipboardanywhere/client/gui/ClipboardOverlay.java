@@ -144,7 +144,9 @@ public final class ClipboardOverlay {
             if (geometry.containsCollapsed(mouseX, mouseY)) {
                 drawWrappedTooltip(
                     Minecraft.getMinecraft().fontRenderer,
-                    shortcutTooltip("tooltip.clipboardanywhere.collapsed", ClientKeyBindings.TOGGLE_COLLAPSE),
+                    StatCollector.translateToLocalFormatted(
+                        "tooltip.clipboardanywhere.collapsed",
+                        KeyBindingDisplay.getDisplayString(ClientKeyBindings.TOGGLE_COLLAPSE)),
                     screenWidth,
                     screenHeight,
                     mouseX,
