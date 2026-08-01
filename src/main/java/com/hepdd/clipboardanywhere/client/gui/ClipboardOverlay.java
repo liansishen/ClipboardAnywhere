@@ -23,11 +23,13 @@ import com.hepdd.clipboardanywhere.model.BindingView;
 import com.hepdd.clipboardanywhere.model.ClipboardAction;
 import com.hepdd.clipboardanywhere.model.ClipboardPageSnapshot;
 import com.hepdd.clipboardanywhere.model.PlayerBindingSnapshot;
+import com.hepdd.clipboardanywhere.network.NetworkCodec;
 import com.hepdd.clipboardanywhere.network.NetworkHandler;
 import com.hepdd.clipboardanywhere.network.message.C2SClipboardAction;
 import com.hepdd.clipboardanywhere.network.message.C2SRenameBinding;
 import com.hepdd.clipboardanywhere.network.message.C2SSelectBinding;
 import com.hepdd.clipboardanywhere.network.message.C2SUnbind;
+import com.hepdd.clipboardanywhere.network.message.C2SUpdateTaskText;
 
 import jds.bibliocraft.items.ItemLoader;
 
@@ -48,6 +50,12 @@ public final class ClipboardOverlay {
     private int dropdownOffset;
     private GuiTextField renameField;
     private UUID renameId;
+    private GuiTextField taskEditField;
+    private UUID taskEditId;
+    private int taskEditPage;
+    private int taskEditRow = -1;
+    private String taskEditOriginalText;
+    private boolean taskEditRepeatWasEnabled;
     private UUID pendingUnbindId;
     private boolean layoutEditing;
     private OverlayGeometry layoutGeometry;
@@ -79,7 +87,11 @@ public final class ClipboardOverlay {
     }
 
     public boolean isModalOpen() {
-        return renameField != null || pendingUnbindId != null;
+        return renameField != null || taskEditField != null || pendingUnbindId != null;
+    }
+
+    public boolean isTextEditing() {
+        return renameField != null || taskEditField != null;
     }
 
     public OverlayGeometry geometry(int screenWidth, int screenHeight) {
@@ -207,6 +219,10 @@ public final class ClipboardOverlay {
         int x = geometry.toLogicalX(mouseX);
         int y = geometry.toLogicalY(mouseY);
         if (x < 0 || x >= OverlayGeometry.LOGICAL_WIDTH || y < 0 || y >= OverlayGeometry.LOGICAL_HEIGHT) {
+            if (taskEditField != null) {
+                submitTaskEdit();
+                return true;
+            }
             if (dropdownOpen) {
                 dropdownOpen = false;
                 return true;
@@ -215,6 +231,7 @@ public final class ClipboardOverlay {
         }
 
         if (renameField != null) return handleRenameClick(x, y);
+        if (taskEditField != null) return handleTaskEditClick(x, y);
         if (pendingUnbindId != null) return handleUnbindConfirmationClick(x, y);
 
         PlayerBindingSnapshot snapshot = ClipboardClientState.INSTANCE.getSnapshot();
@@ -281,6 +298,11 @@ public final class ClipboardOverlay {
             NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), ClipboardAction.CYCLE_TASK, taskRow));
             return true;
         }
+        int textRow = taskTextRowAt(x, y, taskStart);
+        if (textRow >= 0) {
+            beginTaskEdit(active, textRow);
+            return true;
+        }
         int footerTop = OverlayGeometry.LOGICAL_HEIGHT - OverlayGeometry.FOOTER_HEIGHT;
         if (y >= footerTop && x < 28) {
             NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), ClipboardAction.PREVIOUS_PAGE, -1));
@@ -294,7 +316,7 @@ public final class ClipboardOverlay {
     }
 
     public boolean mouseScrolled(int wheelDelta) {
-        if (layoutEditing) return wheelDelta != 0;
+        if (layoutEditing || taskEditField != null) return wheelDelta != 0;
         if (!dropdownOpen || wheelDelta == 0) return false;
         int bindingCount = ClipboardClientState.INSTANCE.getSnapshot()
             .getBindings()
@@ -319,6 +341,20 @@ public final class ClipboardOverlay {
                 closeModal();
             } else {
                 renameField.textboxKeyTyped(character, keyCode);
+            }
+            return true;
+        }
+        if (taskEditField != null) {
+            if (keyCode == Keyboard.KEY_ESCAPE) {
+                closeModal();
+            } else if (keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER) {
+                submitTaskEdit();
+            } else if (keyCode == Keyboard.KEY_TAB) {
+                int direction = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT) ? -1
+                    : 1;
+                submitTaskEdit(taskEditRow + direction);
+            } else {
+                taskEditField.textboxKeyTyped(character, keyCode);
             }
             return true;
         }
@@ -376,6 +412,24 @@ public final class ClipboardOverlay {
         closeModal();
         cancelLayoutEdit();
         cancelOverlayDrag();
+    }
+
+    public void updateTextFields() {
+        if (renameField != null) renameField.updateCursorCounter();
+        if (taskEditField != null) {
+            BindingView active = ClipboardClientState.INSTANCE.getSnapshot()
+                .getActiveBinding();
+            if (active == null || !active.getStatus()
+                .isReadable()
+                || !active.getId()
+                    .equals(taskEditId)
+                || active.getSnapshot()
+                    .getCurrentPage() != taskEditPage) {
+                closeModal();
+            } else {
+                taskEditField.updateCursorCounter();
+            }
+        }
     }
 
     public boolean isLayoutEditing() {
@@ -541,6 +595,7 @@ public final class ClipboardOverlay {
                 active.getStatus()
                     .isReadable());
         }
+        if (taskEditField != null) taskEditField.drawTextBox();
         if (layoutEditing) {
             drawOpacitySliders(font, footer, taskTop, logicalHeight);
             drawResizeHandle(logicalHeight);
@@ -590,12 +645,19 @@ public final class ClipboardOverlay {
     }
 
     private void drawTask(FontRenderer font, ClipboardPageSnapshot page, int row, int y, boolean enabled) {
+        Gui.drawRect(
+            18,
+            y + OverlayGeometry.ROW_HEIGHT - 1,
+            OverlayGeometry.LOGICAL_WIDTH - 6,
+            y + OverlayGeometry.ROW_HEIGHT,
+            fadeBackground(0xFFB8C0C3));
         int state = page.getTaskState(row);
         int boxColor = fade(enabled ? 0xFFC8C8C8 : 0xFF666666);
         Gui.drawRect(6, y + 3, 14, y + 11, boxColor);
         Gui.drawRect(7, y + 4, 13, y + 10, fadeBackground(0xFF080808));
         if (state == 1) drawCheckMark(y, fade(enabled ? 0xFF79D88C : 0xFF777C7E));
         if (state == 2) drawTaskX(y, fade(enabled ? 0xFFE77878 : 0xFF777C7E));
+        if (taskEditField != null && row == taskEditRow) return;
         int textColor = fade(enabled ? 0xFFE8ECEC : 0xFF8C9294);
         font.drawString(trim(font, page.getTask(row), OverlayGeometry.LOGICAL_WIDTH - 26), 20, y + 3, textColor);
     }
@@ -787,6 +849,12 @@ public final class ClipboardOverlay {
                     text = active.getSnapshot()
                         .getTask(row);
                     availableWidth = OverlayGeometry.LOGICAL_WIDTH - 26;
+                    if (active.getStatus()
+                        .isReadable() && logicalX >= 16
+                        && font.getStringWidth(text) <= availableWidth) {
+                        text = StatCollector.translateToLocal("tooltip.clipboardanywhere.edit_task");
+                        alwaysShow = true;
+                    }
                 }
             }
         if (text == null || text.isEmpty() || !alwaysShow && font.getStringWidth(text) <= availableWidth) return;
@@ -1019,6 +1087,25 @@ public final class ClipboardOverlay {
         return true;
     }
 
+    private boolean handleTaskEditClick(int x, int y) {
+        if (taskEditField == null) return true;
+        if (isTaskEditFieldAt(x, y)) {
+            taskEditField.mouseClicked(x, y, 0);
+            return true;
+        }
+
+        int nextRow = taskTextRowAt(x, y, OverlayGeometry.HEADER_HEIGHT);
+        if (nextRow >= 0 && nextRow != taskEditRow) submitTaskEdit(nextRow);
+        else submitTaskEdit();
+        return true;
+    }
+
+    private boolean isTaskEditFieldAt(int x, int y) {
+        if (taskEditField == null) return false;
+        int top = OverlayGeometry.HEADER_HEIGHT + taskEditRow * OverlayGeometry.ROW_HEIGHT + 1;
+        return x >= 18 && x < OverlayGeometry.LOGICAL_WIDTH - 4 && y >= top && y < top + OverlayGeometry.ROW_HEIGHT - 2;
+    }
+
     private boolean handleUnbindConfirmationClick(int x, int y) {
         if (modalConfirmBounds().contains(x, y)) {
             NetworkHandler.sendToServer(new C2SUnbind(pendingUnbindId));
@@ -1027,6 +1114,61 @@ public final class ClipboardOverlay {
             closeModal();
         }
         return true;
+    }
+
+    private void beginTaskEdit(BindingView active, int row) {
+        ClipboardPageSnapshot page = active.getSnapshot();
+        taskEditId = active.getId();
+        taskEditPage = page.getCurrentPage();
+        taskEditRow = row;
+        taskEditOriginalText = page.getTask(row);
+        taskEditField = new GuiTextField(
+            Minecraft.getMinecraft().fontRenderer,
+            18,
+            OverlayGeometry.HEADER_HEIGHT + row * OverlayGeometry.ROW_HEIGHT + 1,
+            OverlayGeometry.LOGICAL_WIDTH - 22,
+            OverlayGeometry.ROW_HEIGHT - 2);
+        taskEditField.setMaxStringLength(NetworkCodec.MAX_EDIT_TASK_TEXT_CHARS);
+        taskEditField.setText(taskEditOriginalText);
+        taskEditField.setFocused(true);
+        taskEditRepeatWasEnabled = Keyboard.areRepeatEventsEnabled();
+        Keyboard.enableRepeatEvents(true);
+        dropdownOpen = false;
+    }
+
+    private void submitTaskEdit() {
+        submitTaskEdit(-1);
+    }
+
+    private void submitTaskEdit(int nextRow) {
+        if (taskEditField == null) return;
+        BindingView active = ClipboardClientState.INSTANCE.getSnapshot()
+            .getActiveBinding();
+        UUID editingId = taskEditId;
+        int editingPage = taskEditPage;
+        int editingRow = taskEditRow;
+        String originalText = taskEditOriginalText;
+        String replacementText = taskEditField.getText();
+        closeModal();
+        NetworkHandler
+            .sendToServer(new C2SUpdateTaskText(editingId, editingPage, editingRow, originalText, replacementText));
+        if (nextRow >= 0 && nextRow < ClipboardPageSnapshot.TASK_COUNT
+            && active != null
+            && active.getId()
+                .equals(editingId)
+            && active.getStatus()
+                .isReadable()
+            && active.getSnapshot()
+                .getCurrentPage() == editingPage) {
+            beginTaskEdit(active, nextRow);
+        }
+    }
+
+    private static int taskTextRowAt(int x, int y, int taskStart) {
+        if (x < 16 || x >= OverlayGeometry.LOGICAL_WIDTH
+            || y < taskStart
+            || y >= taskStart + OverlayGeometry.ROW_HEIGHT * ClipboardPageSnapshot.TASK_COUNT) return -1;
+        return (y - taskStart) / OverlayGeometry.ROW_HEIGHT;
     }
 
     private void beginRename(BindingView active) {
@@ -1044,8 +1186,19 @@ public final class ClipboardOverlay {
     }
 
     private void closeModal() {
+        if (renameField != null) renameField.setFocused(false);
         renameField = null;
         renameId = null;
+        if (taskEditField != null) {
+            taskEditField.setFocused(false);
+            Keyboard.enableRepeatEvents(taskEditRepeatWasEnabled);
+        }
+        taskEditField = null;
+        taskEditId = null;
+        taskEditPage = 0;
+        taskEditRow = -1;
+        taskEditOriginalText = null;
+        taskEditRepeatWasEnabled = false;
         pendingUnbindId = null;
     }
 

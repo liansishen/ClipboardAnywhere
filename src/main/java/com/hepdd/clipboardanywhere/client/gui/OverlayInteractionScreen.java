@@ -46,6 +46,11 @@ public final class OverlayInteractionScreen extends GuiScreen {
     }
 
     @Override
+    public void onGuiClosed() {
+        ClipboardOverlay.INSTANCE.resetTransientState();
+    }
+
+    @Override
     public boolean doesGuiPauseGame() {
         return false;
     }

@@ -222,6 +222,50 @@ public final class ClipboardServerService {
         sendState(player);
     }
 
+    public void updateTaskText(EntityPlayerMP player, UUID id, int pageNumber, int row, String expectedText,
+        String requestedText) {
+        ClipboardWorldData data = ClipboardWorldData.get(player.worldObj);
+        PlayerBindings playerBindings = data.getPlayer(player.getUniqueID());
+        PlayerBindingRecord binding = playerBindings == null ? null : playerBindings.get(id);
+        String text = sanitizeTaskText(requestedText);
+        if (binding == null || pageNumber < 1
+            || row < 0
+            || row >= ClipboardPageSnapshot.TASK_COUNT
+            || expectedText == null
+            || expectedText.length() > NetworkCodec.MAX_TASK_TEXT_CHARS
+            || text == null) {
+            sendFailureAndState(player, "message.clipboardanywhere.invalid_task_text");
+            return;
+        }
+        ServerTarget target = resolver
+            .resolve(player, data.getClipboard(id), binding, player.worldObj.getTotalWorldTime());
+        if (!target.getStatus()
+            .isReadable()) {
+            sendFailureAndState(player, "message.clipboardanywhere.disconnected");
+            return;
+        }
+        ClipboardPageSnapshot current = target.getSnapshot();
+        if (pageNumber != current.getCurrentPage() || row >= ClipboardPageSnapshot.TASK_COUNT
+            || !current.getTask(row)
+                .equals(expectedText)) {
+            sendFailureAndState(player, "message.clipboardanywhere.task_text_conflict");
+            return;
+        }
+        if (!target.updateTaskText(pageNumber, row, expectedText, text)) {
+            sendFailureAndState(player, "message.clipboardanywhere.action_unavailable");
+            return;
+        }
+        ClipboardPageSnapshot fresh = target.readSnapshot(player.worldObj.getTotalWorldTime());
+        if (!binding.getCachedPage()
+            .hasSameContent(fresh)) {
+            binding.updateCachedPage(fresh, player.worldObj.getTotalWorldTime());
+            data.markDirty();
+        }
+        sendResult(player, true, "message.clipboardanywhere.task_text_updated");
+        sendState(player);
+        sendToBoundOnlinePlayers(data, id);
+    }
+
     public PlayerBindingSnapshot buildSnapshot(EntityPlayerMP player) {
         ClipboardWorldData data = ClipboardWorldData.get(player.worldObj);
         PlayerBindings playerBindings = data.getPlayer(player.getUniqueID());
@@ -363,5 +407,24 @@ public final class ClipboardServerService {
         }
         return output.toString()
             .trim();
+    }
+
+    static String sanitizeTaskText(String input) {
+        if (input == null || input.length() > NetworkCodec.MAX_EDIT_TASK_TEXT_CHARS) return null;
+        StringBuilder output = new StringBuilder();
+        boolean skipFormattingValue = false;
+        for (int index = 0; index < input.length(); index++) {
+            char character = input.charAt(index);
+            if (skipFormattingValue) {
+                skipFormattingValue = false;
+                continue;
+            }
+            if (character == '\u00a7') {
+                skipFormattingValue = true;
+                continue;
+            }
+            if (!Character.isISOControl(character)) output.append(character);
+        }
+        return output.toString();
     }
 }

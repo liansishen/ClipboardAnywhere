@@ -41,6 +41,7 @@ public final class ClientEventHandler {
 
     public static final ClientEventHandler INSTANCE = new ClientEventHandler();
     private Object lastWorld;
+    private GuiScreen lastScreen;
     private int requestDelay;
     private String noticeKey;
     private boolean noticeSuccess;
@@ -58,6 +59,7 @@ public final class ClientEventHandler {
                 ClipboardOverlay.INSTANCE.resetTransientState();
             }
             lastWorld = null;
+            lastScreen = null;
             requestDelay = 0;
             return;
         }
@@ -68,6 +70,10 @@ public final class ClientEventHandler {
         } else if (requestDelay > 0 && --requestDelay == 0) {
             NetworkHandler.sendToServer(new C2SRequestState());
         }
+        if (lastScreen != minecraft.currentScreen) {
+            lastScreen = minecraft.currentScreen;
+            ClipboardOverlay.INSTANCE.resetTransientState();
+        }
 
         if (minecraft.currentScreen instanceof OverlayInteractionScreen && !ClipboardOverlay.INSTANCE.isAvailable()) {
             ClipboardOverlay.INSTANCE.cancelLayoutEdit();
@@ -75,6 +81,7 @@ public final class ClientEventHandler {
         } else if (isOverlaySuppressed(minecraft.currentScreen)) {
             ClipboardOverlay.INSTANCE.resetTransientState();
         }
+        ClipboardOverlay.INSTANCE.updateTextFields();
         updateNotice();
     }
 
