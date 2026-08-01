@@ -112,29 +112,21 @@ public final class ClipboardOverlay {
                 Config.scale,
                 screenWidth,
                 screenHeight,
-                collapsed);
-            saveLayout(
-                legacyGeometry,
-                screenWidth,
-                screenHeight,
-                collapsed,
-                Config.backgroundOpacity,
-                Config.textOpacity);
-            return OverlayGeometry.fromEdges(
-                Config.anchorFromRight,
-                Config.anchorFromBottom,
-                Config.horizontalOffset,
-                Config.verticalOffset,
-                Config.scale,
-                screenWidth,
-                screenHeight,
-                collapsed);
+                false);
+            saveLayout(legacyGeometry, screenWidth, screenHeight, false, Config.backgroundOpacity, Config.textOpacity);
+            return configuredGeometry(screenWidth, screenHeight, collapsed);
         }
-        return OverlayGeometry.fromEdges(
-            Config.anchorFromRight,
-            Config.anchorFromBottom,
+        return configuredGeometry(screenWidth, screenHeight, collapsed);
+    }
+
+    private static OverlayGeometry configuredGeometry(int screenWidth, int screenHeight, boolean collapsed) {
+        return OverlayGeometry.fromPosition(
+            Config.horizontalPositionMode,
+            Config.verticalPositionMode,
             Config.horizontalOffset,
             Config.verticalOffset,
+            Config.horizontalPosition,
+            Config.verticalPosition,
             Config.scale,
             screenWidth,
             screenHeight,
@@ -152,7 +144,9 @@ public final class ClipboardOverlay {
             if (geometry.containsCollapsed(mouseX, mouseY)) {
                 drawWrappedTooltip(
                     Minecraft.getMinecraft().fontRenderer,
-                    shortcutTooltip("tooltip.clipboardanywhere.collapsed", ClientKeyBindings.TOGGLE_COLLAPSE),
+                    StatCollector.translateToLocalFormatted(
+                        "tooltip.clipboardanywhere.collapsed",
+                        KeyBindingDisplay.getDisplayString(ClientKeyBindings.TOGGLE_COLLAPSE)),
                     screenWidth,
                     screenHeight,
                     mouseX,
@@ -372,16 +366,16 @@ public final class ClipboardOverlay {
 
     public boolean handleShortcut(int keyCode) {
         if (!isAvailable() || isModalOpen() || layoutEditing || keyCode == Keyboard.KEY_NONE) return false;
-        if (keyCode == ClientKeyBindings.TOGGLE_COLLAPSE.getKeyCode()) {
+        if (KeyBindingDisplay.isActiveAndMatches(ClientKeyBindings.TOGGLE_COLLAPSE, keyCode)) {
             toggleCollapsed();
             return true;
         }
         if (Config.collapsed) return false;
-        if (keyCode == ClientKeyBindings.PREVIOUS_PAGE.getKeyCode()) {
+        if (KeyBindingDisplay.isActiveAndMatches(ClientKeyBindings.PREVIOUS_PAGE, keyCode)) {
             performActiveAction(ClipboardAction.PREVIOUS_PAGE);
             return true;
         }
-        if (keyCode == ClientKeyBindings.NEXT_PAGE.getKeyCode()) {
+        if (KeyBindingDisplay.isActiveAndMatches(ClientKeyBindings.NEXT_PAGE, keyCode)) {
             performActiveAction(ClipboardAction.NEXT_PAGE);
             return true;
         }
@@ -524,12 +518,14 @@ public final class ClipboardOverlay {
 
     private static void saveLayout(OverlayGeometry geometry, int screenWidth, int screenHeight, boolean collapsed,
         double backgroundOpacity, double textOpacity) {
-        OverlayGeometry.EdgePosition position = geometry.toEdgePosition(screenWidth, screenHeight, collapsed);
+        OverlayGeometry.SavedPosition position = geometry.toSavedPosition(screenWidth, screenHeight, collapsed);
         Config.saveLayout(
-            position.isFromRight(),
-            position.isFromBottom(),
+            position.getHorizontalMode(),
+            position.getVerticalMode(),
             position.getHorizontalOffset(),
             position.getVerticalOffset(),
+            position.getHorizontalPosition(),
+            position.getVerticalPosition(),
             geometry.getScale(),
             backgroundOpacity,
             textOpacity);
@@ -604,12 +600,12 @@ public final class ClipboardOverlay {
         }
 
         if (!layoutEditing && controlsVisible) {
-            if (dropdownOpen) drawDropdown(font, mouseX, mouseY);
-            if (renameField != null || pendingUnbindId != null) {
+            if (dropdownOpen || renameField != null || pendingUnbindId != null) {
                 int previousBackgroundAlpha = backgroundAlpha;
                 int previousForegroundAlpha = foregroundAlpha;
                 backgroundAlpha = 255;
                 foregroundAlpha = 255;
+                if (dropdownOpen) drawDropdown(font, mouseX, mouseY);
                 if (renameField != null) drawRenameModal(font);
                 if (pendingUnbindId != null) drawUnbindModal(font);
                 backgroundAlpha = previousBackgroundAlpha;

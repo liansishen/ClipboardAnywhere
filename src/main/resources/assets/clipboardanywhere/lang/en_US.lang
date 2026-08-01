@@ -12,7 +12,7 @@ tooltip.clipboardanywhere.collapse=Collapse overlay
 tooltip.clipboardanywhere.previous_page=Previous page
 tooltip.clipboardanywhere.next_page=Next page
 tooltip.clipboardanywhere.edit_task=Click to edit task text
-tooltip.clipboardanywhere.collapsed=Click to expand; drag to move
+tooltip.clipboardanywhere.collapsed=Click to expand [%s]; drag to move
 gui.clipboardanywhere.rename=Rename clipboard binding
 gui.clipboardanywhere.unbind_confirm=Unbind this clipboard?
 gui.clipboardanywhere.unbind_keeps_content=The clipboard and its tasks will not be deleted.
@@ -20,6 +20,7 @@ gui.clipboardanywhere.drag_title=Drag
 gui.clipboardanywhere.background_opacity=BG
 gui.clipboardanywhere.text_opacity=Text
 
+message.clipboardanywhere.interaction_exit_hint=Press %s or Esc to exit clipboard interaction mode
 message.clipboardanywhere.all_disconnected=All bound clipboards are disconnected
 message.clipboardanywhere.bound=Clipboard bound
 message.clipboardanywhere.selected=Clipboard selected

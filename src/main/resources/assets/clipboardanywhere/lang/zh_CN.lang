@@ -12,7 +12,7 @@ tooltip.clipboardanywhere.collapse=折叠悬浮窗
 tooltip.clipboardanywhere.previous_page=上一页
 tooltip.clipboardanywhere.next_page=下一页
 tooltip.clipboardanywhere.edit_task=点击编辑任务文本
-tooltip.clipboardanywhere.collapsed=点击展开；拖动可移动
+tooltip.clipboardanywhere.collapsed=点击展开 [%s]；拖动可移动
 gui.clipboardanywhere.rename=修改写字板绑定名称
 gui.clipboardanywhere.unbind_confirm=确定解绑这个写字板？
 gui.clipboardanywhere.unbind_keeps_content=写字板及其中的任务内容不会被删除。
@@ -20,6 +20,7 @@ gui.clipboardanywhere.drag_title=拖动
 gui.clipboardanywhere.background_opacity=背景
 gui.clipboardanywhere.text_opacity=文字
 
+message.clipboardanywhere.interaction_exit_hint=按 %s 或 Esc 退出写字板交互模式
 message.clipboardanywhere.all_disconnected=所有绑定的写字板均已失联
 message.clipboardanywhere.bound=已绑定写字板
 message.clipboardanywhere.selected=已切换写字板
