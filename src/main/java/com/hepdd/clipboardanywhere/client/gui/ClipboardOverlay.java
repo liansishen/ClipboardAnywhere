@@ -112,29 +112,21 @@ public final class ClipboardOverlay {
                 Config.scale,
                 screenWidth,
                 screenHeight,
-                collapsed);
-            saveLayout(
-                legacyGeometry,
-                screenWidth,
-                screenHeight,
-                collapsed,
-                Config.backgroundOpacity,
-                Config.textOpacity);
-            return OverlayGeometry.fromEdges(
-                Config.anchorFromRight,
-                Config.anchorFromBottom,
-                Config.horizontalOffset,
-                Config.verticalOffset,
-                Config.scale,
-                screenWidth,
-                screenHeight,
-                collapsed);
+                false);
+            saveLayout(legacyGeometry, screenWidth, screenHeight, false, Config.backgroundOpacity, Config.textOpacity);
+            return configuredGeometry(screenWidth, screenHeight, collapsed);
         }
-        return OverlayGeometry.fromEdges(
-            Config.anchorFromRight,
-            Config.anchorFromBottom,
+        return configuredGeometry(screenWidth, screenHeight, collapsed);
+    }
+
+    private static OverlayGeometry configuredGeometry(int screenWidth, int screenHeight, boolean collapsed) {
+        return OverlayGeometry.fromPosition(
+            Config.horizontalPositionMode,
+            Config.verticalPositionMode,
             Config.horizontalOffset,
             Config.verticalOffset,
+            Config.horizontalPosition,
+            Config.verticalPosition,
             Config.scale,
             screenWidth,
             screenHeight,
@@ -524,12 +516,14 @@ public final class ClipboardOverlay {
 
     private static void saveLayout(OverlayGeometry geometry, int screenWidth, int screenHeight, boolean collapsed,
         double backgroundOpacity, double textOpacity) {
-        OverlayGeometry.EdgePosition position = geometry.toEdgePosition(screenWidth, screenHeight, collapsed);
+        OverlayGeometry.SavedPosition position = geometry.toSavedPosition(screenWidth, screenHeight, collapsed);
         Config.saveLayout(
-            position.isFromRight(),
-            position.isFromBottom(),
+            position.getHorizontalMode(),
+            position.getVerticalMode(),
             position.getHorizontalOffset(),
             position.getVerticalOffset(),
+            position.getHorizontalPosition(),
+            position.getVerticalPosition(),
             geometry.getScale(),
             backgroundOpacity,
             textOpacity);

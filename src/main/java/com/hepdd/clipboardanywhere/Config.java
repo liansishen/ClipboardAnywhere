@@ -10,10 +10,12 @@ public class Config {
     public static final double MIN_OPACITY = 0.10D;
     public static final double MAX_OPACITY = 1.0D;
     private static Configuration configuration;
-    public static boolean anchorFromRight = true;
-    public static boolean anchorFromBottom;
+    public static String horizontalPositionMode = "right";
+    public static String verticalPositionMode = "top";
     public static int horizontalOffset = 8;
     public static int verticalOffset = 36;
+    public static double horizontalPosition = 1.0D;
+    public static double verticalPosition;
     public static double scale = 1.0D;
     public static double backgroundOpacity = DEFAULT_OPACITY;
     public static double textOpacity = DEFAULT_OPACITY;
@@ -25,17 +27,17 @@ public class Config {
     public static void synchronizeConfiguration(File configFile) {
         configuration = new Configuration(configFile);
         configuration.load();
-        boolean hasRelativePosition = configuration.getCategory("overlay")
+        boolean hasSavedPosition = configuration.getCategory("overlay")
             .containsKey("horizontalAnchor");
         boolean hasLegacyPosition = configuration.getCategory("overlay")
             .containsKey("anchorRight")
             || configuration.getCategory("overlay")
                 .containsKey("anchorTop");
-        if (hasRelativePosition || !hasLegacyPosition) {
-            anchorFromRight = "right".equalsIgnoreCase(
+        if (hasSavedPosition || !hasLegacyPosition) {
+            horizontalPositionMode = normalizeHorizontalMode(
                 configuration.get("overlay", "horizontalAnchor", "right")
                     .getString());
-            anchorFromBottom = "bottom".equalsIgnoreCase(
+            verticalPositionMode = normalizeVerticalMode(
                 configuration.get("overlay", "verticalAnchor", "top")
                     .getString());
             horizontalOffset = Math.max(
@@ -46,6 +48,16 @@ public class Config {
                 0,
                 configuration.get("overlay", "verticalOffset", 36)
                     .getInt(36));
+            horizontalPosition = clamp(
+                configuration.get("overlay", "horizontalPosition", 1.0D)
+                    .getDouble(1.0D),
+                0.0D,
+                1.0D);
+            verticalPosition = clamp(
+                configuration.get("overlay", "verticalPosition", 0.0D)
+                    .getDouble(0.0D),
+                0.0D,
+                1.0D);
             legacyPositionPending = false;
         } else {
             legacyAnchorRight = configuration.get("overlay", "anchorRight", -1)
@@ -88,12 +100,15 @@ public class Config {
         }
     }
 
-    public static void saveLayout(boolean fromRight, boolean fromBottom, int newHorizontalOffset, int newVerticalOffset,
-        double newScale, double newBackgroundOpacity, double newTextOpacity) {
-        anchorFromRight = fromRight;
-        anchorFromBottom = fromBottom;
+    public static void saveLayout(String newHorizontalMode, String newVerticalMode, int newHorizontalOffset,
+        int newVerticalOffset, double newHorizontalPosition, double newVerticalPosition, double newScale,
+        double newBackgroundOpacity, double newTextOpacity) {
+        horizontalPositionMode = normalizeHorizontalMode(newHorizontalMode);
+        verticalPositionMode = normalizeVerticalMode(newVerticalMode);
         horizontalOffset = Math.max(0, newHorizontalOffset);
         verticalOffset = Math.max(0, newVerticalOffset);
+        horizontalPosition = clamp(newHorizontalPosition, 0.0D, 1.0D);
+        verticalPosition = clamp(newVerticalPosition, 0.0D, 1.0D);
         scale = clamp(newScale, 0.5D, 2.0D);
         backgroundOpacity = clamp(newBackgroundOpacity, MIN_OPACITY, MAX_OPACITY);
         textOpacity = clamp(newTextOpacity, MIN_OPACITY, MAX_OPACITY);
@@ -103,13 +118,17 @@ public class Config {
         configuration.getCategory("overlay")
             .remove("anchorTop");
         configuration.get("overlay", "horizontalAnchor", "right")
-            .set(anchorFromRight ? "right" : "left");
+            .set(horizontalPositionMode);
         configuration.get("overlay", "verticalAnchor", "top")
-            .set(anchorFromBottom ? "bottom" : "top");
+            .set(verticalPositionMode);
         configuration.get("overlay", "horizontalOffset", 8)
             .set(horizontalOffset);
         configuration.get("overlay", "verticalOffset", 36)
             .set(verticalOffset);
+        configuration.get("overlay", "horizontalPosition", 1.0D)
+            .set(horizontalPosition);
+        configuration.get("overlay", "verticalPosition", 0.0D)
+            .set(verticalPosition);
         configuration.get("overlay", "scale", 1.0D)
             .set(scale);
         configuration.getCategory("overlay")
@@ -138,6 +157,18 @@ public class Config {
         configuration.get("overlay", "collapsed", false)
             .set(value);
         configuration.save();
+    }
+
+    private static String normalizeHorizontalMode(String value) {
+        if ("left".equalsIgnoreCase(value)) return "left";
+        if ("relative".equalsIgnoreCase(value)) return "relative";
+        return "right";
+    }
+
+    private static String normalizeVerticalMode(String value) {
+        if ("bottom".equalsIgnoreCase(value)) return "bottom";
+        if ("relative".equalsIgnoreCase(value)) return "relative";
+        return "top";
     }
 
     private static double clamp(double value, double min, double max) {

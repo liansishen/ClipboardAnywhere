@@ -81,7 +81,7 @@ Client layout settings are stored in `config/clipboardanywhere.cfg`. The in-game
 | Scale | `0.5` to `2.0` |
 | Background opacity | `0.10` to `1.0` |
 | Text opacity | `0.10` to `1.0` |
-| Position | Saved relative to the nearest horizontal and vertical screen edges |
+| Position | Keeps a fixed margin when near an edge; otherwise preserves its relative position across window sizes |
 | Collapsed state | Persisted between sessions |
 
 Clipboard identities, per-player bindings, names, active selections, and cached pages are stored in server-side world data.
