@@ -34,16 +34,16 @@
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
 dependencies {
-    //runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.7.69-GTNH:dev")
     devOnlyNonPublishable(rfg.deobf("curse.maven:modern-keybinding-forge-686846:4034362")) {
         transitive = false
     }
+    // GTNH 2.9.0-RC-1: https://github.com/GTNewHorizons/DreamAssemblerXXL/blob/master/releases/manifests/2.9.0-RC-1.json
     devOnlyNonPublishable(rfg.deobf("curse.maven:bibliocraft-228027:2423369"))
-    devOnlyNonPublishable(rfg.deobf("com.github.GTNewHorizons:ModularUI2:2.3.79-1.7.10:dev"))
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:GTNHLib:0.11.24:dev")
-    runtimeOnlyNonPublishable('com.github.GTNewHorizons:GT5-Unofficial:5.09.54.20:dev')
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.8.111-GTNH:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Angelica:2.1.52:dev")
-    runtimeOnlyNonPublishable("com.github.GTNewHorizons:waila:1.19.30:dev")
+    devOnlyNonPublishable(rfg.deobf("com.github.GTNewHorizons:ModularUI2:2.3.91-1.7.10:dev"))
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:GTNHLib:0.11.51:dev")
+    runtimeOnlyNonPublishable('com.github.GTNewHorizons:GT5-Unofficial:5.09.54.183:dev')
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:NotEnoughItems:2.8.145-GTNH:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:Angelica:2.2.19:dev")
+    runtimeOnlyNonPublishable("com.github.GTNewHorizons:waila:1.19.34:dev")
     runtimeOnlyNonPublishable("com.github.GTNewHorizons:WAILAPlugins:0.7.2:dev")
 }
