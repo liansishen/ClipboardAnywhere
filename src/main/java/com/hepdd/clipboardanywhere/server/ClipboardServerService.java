@@ -1,9 +1,12 @@
 package com.hepdd.clipboardanywhere.server;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -25,6 +28,8 @@ import com.hepdd.clipboardanywhere.model.ClipboardPageSnapshot;
 import com.hepdd.clipboardanywhere.model.PlayerBindingSnapshot;
 import com.hepdd.clipboardanywhere.model.TargetStatus;
 import com.hepdd.clipboardanywhere.network.NetworkCodec;
+import com.hepdd.clipboardanywhere.network.NetworkCodec.BindingStatePayload;
+import com.hepdd.clipboardanywhere.network.NetworkCodec.BindingWireEntry;
 import com.hepdd.clipboardanywhere.network.NetworkHandler;
 import com.hepdd.clipboardanywhere.network.message.S2CBindingState;
 import com.hepdd.clipboardanywhere.network.message.S2COperationResult;
@@ -34,31 +39,57 @@ import jds.bibliocraft.tileentities.TileEntityClipboard;
 public final class ClipboardServerService {
 
     public static final ClipboardServerService INSTANCE = new ClipboardServerService();
+    static final int BIND_COOLDOWN_TICKS = 6;
     private final ServerTargetResolver resolver = new ServerTargetResolver();
-    private final Map<UUID, PlayerBindingSnapshot> lastSentSnapshots = new LinkedHashMap<>();
+    private final Map<UUID, PlayerSessionSyncState> sessionStates = new LinkedHashMap<>();
 
     private ClipboardServerService() {}
 
+    public void recordClientSeq(EntityPlayerMP player, int clientSeq) {
+        if (player == null) return;
+        stateFor(player.getUniqueID()).lastAckSeq = clientSeq;
+    }
+
+    public void sendFullState(EntityPlayerMP player) {
+        if (player == null || player.playerNetServerHandler == null) return;
+        PlayerSessionSyncState state = stateFor(player.getUniqueID());
+        state.sentPages.clear();
+        sendState(player);
+    }
+
     public void sendState(EntityPlayerMP player) {
         if (player == null || player.playerNetServerHandler == null) return;
+        PlayerSessionSyncState state = stateFor(player.getUniqueID());
         PlayerBindingSnapshot snapshot = buildSnapshot(player);
-        lastSentSnapshots.put(player.getUniqueID(), snapshot);
-        NetworkHandler.sendTo(new S2CBindingState(snapshot), player);
+        BindingStatePayload payload = buildIncrementalPayload(snapshot, state);
+        state.lastSnapshot = snapshot;
+        NetworkHandler.sendTo(new S2CBindingState(payload), player);
     }
 
     public void sendStateIfChanged(EntityPlayerMP player) {
         if (player == null || player.playerNetServerHandler == null) return;
+        PlayerSessionSyncState state = stateFor(player.getUniqueID());
         PlayerBindingSnapshot snapshot = buildSnapshot(player);
-        if (snapshot.equals(lastSentSnapshots.get(player.getUniqueID()))) return;
-        lastSentSnapshots.put(player.getUniqueID(), snapshot);
-        NetworkHandler.sendTo(new S2CBindingState(snapshot), player);
+        if (snapshot.equals(state.lastSnapshot)) return;
+        BindingStatePayload payload = buildIncrementalPayload(snapshot, state);
+        state.lastSnapshot = snapshot;
+        NetworkHandler.sendTo(new S2CBindingState(payload), player);
     }
 
     public void forgetPlayer(UUID playerId) {
-        lastSentSnapshots.remove(playerId);
+        sessionStates.remove(playerId);
     }
 
     public void bindHeldClipboard(EntityPlayerMP player) {
+        if (player == null || player.playerNetServerHandler == null) return;
+        MinecraftServer server = MinecraftServer.getServer();
+        if (server != null) {
+            PlayerSessionSyncState state = stateFor(player.getUniqueID());
+            if (!state.tryAcquireBindSlot(server.getTickCounter(), BIND_COOLDOWN_TICKS)) {
+                return;
+            }
+        }
+
         ItemStack held = player.getCurrentEquippedItem();
         if (!ClipboardIdentity.isClipboard(held)) return;
 
@@ -75,11 +106,13 @@ public final class ClipboardServerService {
         PlayerBindings playerBindings = data.getOrCreatePlayer(player.getUniqueID());
         boolean created = !playerBindings.contains(id);
         if (created && playerBindings.size() >= NetworkCodec.MAX_BINDINGS) {
-            sendFailureAndState(player, "message.clipboardanywhere.binding_limit");
+            sendFailureAndState(player, id, "message.clipboardanywhere.binding_limit");
             return;
         }
 
         ClipboardIdentity.setId(held, id);
+        player.inventory.markDirty();
+        player.inventoryContainer.detectAndSendChanges();
         data.getOrCreateClipboard(id);
         if (created) {
             ClipboardPageSnapshot page = BiblioClipboardAdapter.read(held, now);
@@ -98,7 +131,7 @@ public final class ClipboardServerService {
         PlayerBindings playerBindings = data.getPlayer(player.getUniqueID());
         PlayerBindingRecord binding = playerBindings == null ? null : playerBindings.get(id);
         if (binding == null) {
-            sendFailureAndState(player, "message.clipboardanywhere.invalid_binding");
+            sendFailureAndState(player, id, "message.clipboardanywhere.invalid_binding");
             return;
         }
         ServerTarget target = resolver
@@ -117,14 +150,14 @@ public final class ClipboardServerService {
         PlayerBindingRecord binding = playerBindings == null ? null : playerBindings.get(id);
         String name = sanitizeName(requestedName);
         if (binding == null || name.isEmpty()) {
-            sendFailureAndState(player, "message.clipboardanywhere.invalid_name");
+            sendFailureAndState(player, id, "message.clipboardanywhere.invalid_name");
             return;
         }
         long now = player.worldObj.getTotalWorldTime();
         ServerTarget target = resolver.resolve(player, data.getClipboard(id), binding, now);
         if (!target.getStatus()
             .isReadable()) {
-            sendFailureAndState(player, "message.clipboardanywhere.disconnected");
+            sendFailureAndState(player, id, "message.clipboardanywhere.disconnected");
             return;
         }
         binding.setDisplayName(name, now);
@@ -138,7 +171,7 @@ public final class ClipboardServerService {
         PlayerBindings playerBindings = data.getPlayer(player.getUniqueID());
         PlayerBindingRecord binding = playerBindings == null ? null : playerBindings.get(id);
         if (binding == null) {
-            sendFailureAndState(player, "message.clipboardanywhere.invalid_binding");
+            sendFailureAndState(player, id, "message.clipboardanywhere.invalid_binding");
             return;
         }
         ServerTarget target = resolver
@@ -162,13 +195,14 @@ public final class ClipboardServerService {
         TileEntity rawTile = world.getTileEntity(x, y, z);
         if (!(rawTile instanceof TileEntityClipboard)) return;
         TileEntityClipboard tile = (TileEntityClipboard) rawTile;
-        if (BiblioClipboardAdapter.ensureStructure(tile.getStackInSlot(0))) {
+        ItemStack stack = tile.getStackInSlot(0);
+        UUID id = ClipboardIdentity.getId(stack);
+        if (id == null) return;
+        if (BiblioClipboardAdapter.ensureStructure(stack)) {
             tile.getNBTData();
             tile.markDirty();
             world.markBlockForUpdate(x, y, z);
         }
-        UUID id = ClipboardIdentity.getId(tile.getStackInSlot(0));
-        if (id == null) return;
         ClipboardWorldData data = ClipboardWorldData.get(world);
         ClipboardRecord record = data.getClipboard(id);
         if (record == null || !data.isReferenced(id)) return;
@@ -205,21 +239,28 @@ public final class ClipboardServerService {
         PlayerBindings playerBindings = data.getPlayer(player.getUniqueID());
         PlayerBindingRecord binding = playerBindings == null ? null : playerBindings.get(id);
         if (binding == null || action == null || action == ClipboardAction.CYCLE_TASK && (row < 0 || row >= 9)) {
-            sendFailureAndState(player, "message.clipboardanywhere.invalid_action");
+            sendFailureAndState(player, id, "message.clipboardanywhere.invalid_action");
             return;
         }
-        ServerTarget target = resolver
-            .resolve(player, data.getClipboard(id), binding, player.worldObj.getTotalWorldTime());
+        long now = player.worldObj.getTotalWorldTime();
+        ServerTarget target = resolver.resolve(player, data.getClipboard(id), binding, now);
         if (!target.getStatus()
             .isReadable()) {
-            sendFailureAndState(player, "message.clipboardanywhere.disconnected");
+            sendFailureAndState(player, id, "message.clipboardanywhere.disconnected");
             return;
         }
         if (!target.apply(action, row)) {
-            sendFailureAndState(player, "message.clipboardanywhere.action_unavailable");
+            sendFailureAndState(player, id, "message.clipboardanywhere.action_unavailable");
             return;
         }
+        ClipboardPageSnapshot fresh = target.readSnapshot(now);
+        if (!binding.getCachedPage()
+            .hasSameContent(fresh)) {
+            binding.updateCachedPage(fresh, now);
+            data.markDirty();
+        }
         sendState(player);
+        sendToBoundOnlinePlayers(data, id);
     }
 
     public void updateTaskText(EntityPlayerMP player, UUID id, int pageNumber, int row, String expectedText,
@@ -234,31 +275,31 @@ public final class ClipboardServerService {
             || expectedText == null
             || expectedText.length() > NetworkCodec.MAX_TASK_TEXT_CHARS
             || text == null) {
-            sendFailureAndState(player, "message.clipboardanywhere.invalid_task_text");
+            sendFailureAndState(player, id, "message.clipboardanywhere.invalid_task_text");
             return;
         }
-        ServerTarget target = resolver
-            .resolve(player, data.getClipboard(id), binding, player.worldObj.getTotalWorldTime());
+        long now = player.worldObj.getTotalWorldTime();
+        ServerTarget target = resolver.resolve(player, data.getClipboard(id), binding, now);
         if (!target.getStatus()
             .isReadable()) {
-            sendFailureAndState(player, "message.clipboardanywhere.disconnected");
+            sendFailureAndState(player, id, "message.clipboardanywhere.disconnected");
             return;
         }
         ClipboardPageSnapshot current = target.getSnapshot();
         if (pageNumber != current.getCurrentPage() || row >= ClipboardPageSnapshot.TASK_COUNT
             || !current.getTask(row)
                 .equals(expectedText)) {
-            sendFailureAndState(player, "message.clipboardanywhere.task_text_conflict");
+            sendFailureAndState(player, id, "message.clipboardanywhere.task_text_conflict");
             return;
         }
         if (!target.updateTaskText(pageNumber, row, expectedText, text)) {
-            sendFailureAndState(player, "message.clipboardanywhere.action_unavailable");
+            sendFailureAndState(player, id, "message.clipboardanywhere.action_unavailable");
             return;
         }
-        ClipboardPageSnapshot fresh = target.readSnapshot(player.worldObj.getTotalWorldTime());
+        ClipboardPageSnapshot fresh = target.readSnapshot(now);
         if (!binding.getCachedPage()
             .hasSameContent(fresh)) {
-            binding.updateCachedPage(fresh, player.worldObj.getTotalWorldTime());
+            binding.updateCachedPage(fresh, now);
             data.markDirty();
         }
         sendResult(player, true, "message.clipboardanywhere.task_text_updated");
@@ -274,11 +315,12 @@ public final class ClipboardServerService {
         }
 
         long now = player.worldObj.getTotalWorldTime();
+        Map<UUID, Integer> inventoryIndex = resolver.indexInventoryClipboards(player.inventory.mainInventory);
         Map<UUID, TargetStatus> statuses = new LinkedHashMap<>();
         UUID firstReadable = null;
         for (PlayerBindingRecord binding : playerBindings.values()) {
             ClipboardRecord clipboard = data.getClipboard(binding.getClipboardId());
-            ServerTarget target = resolver.resolve(player, clipboard, binding, now);
+            ServerTarget target = resolver.resolve(player, inventoryIndex, clipboard, binding, now);
             statuses.put(binding.getClipboardId(), target.getStatus());
             if (target.getStatus()
                 .isReadable()) {
@@ -313,6 +355,29 @@ public final class ClipboardServerService {
         return new PlayerBindingSnapshot(activeId, readable);
     }
 
+    static BindingStatePayload buildIncrementalPayload(PlayerBindingSnapshot snapshot, PlayerSessionSyncState state) {
+        PlayerBindingSnapshot value = snapshot == null ? PlayerBindingSnapshot.EMPTY : snapshot;
+        List<BindingView> bindings = value.getBindings();
+        Set<UUID> currentIds = new HashSet<>(bindings.size());
+        List<BindingWireEntry> entries = new ArrayList<>(bindings.size());
+        for (BindingView binding : bindings) {
+            UUID id = binding.getId();
+            currentIds.add(id);
+            ClipboardPageSnapshot lastSentPage = state.sentPages.get(id);
+            if (lastSentPage == null || !lastSentPage.equals(binding.getSnapshot())) {
+                state.sentPages.put(id, binding.getSnapshot());
+                entries.add(
+                    BindingWireEntry
+                        .withPage(id, binding.getDisplayName(), binding.getStatus(), binding.getSnapshot()));
+            } else {
+                entries.add(BindingWireEntry.summaryOnly(id, binding.getDisplayName(), binding.getStatus()));
+            }
+        }
+        state.sentPages.keySet()
+            .retainAll(currentIds);
+        return new BindingStatePayload(value.getActiveId(), state.lastAckSeq, entries);
+    }
+
     static UUID reconcileActiveBinding(PlayerBindings bindings, Map<UUID, TargetStatus> statuses, UUID firstReadable) {
         UUID activeId = bindings.getActiveId();
         TargetStatus activeStatus = statuses.get(activeId);
@@ -325,7 +390,19 @@ public final class ClipboardServerService {
         return activeId;
     }
 
-    private void sendFailureAndState(EntityPlayerMP player, String translationKey) {
+    private PlayerSessionSyncState stateFor(UUID playerId) {
+        PlayerSessionSyncState state = sessionStates.get(playerId);
+        if (state == null) {
+            state = new PlayerSessionSyncState();
+            sessionStates.put(playerId, state);
+        }
+        return state;
+    }
+
+    private void sendFailureAndState(EntityPlayerMP player, UUID affectedBindingId, String translationKey) {
+        if (player != null && affectedBindingId != null) {
+            stateFor(player.getUniqueID()).sentPages.remove(affectedBindingId);
+        }
         sendResult(player, false, translationKey);
         sendState(player);
     }
@@ -390,41 +467,28 @@ public final class ClipboardServerService {
     }
 
     static String sanitizeName(String input) {
-        if (input == null) return "";
-        StringBuilder output = new StringBuilder();
-        boolean skipFormattingValue = false;
-        for (int index = 0; index < input.length() && output.length() < 32; index++) {
-            char character = input.charAt(index);
-            if (skipFormattingValue) {
-                skipFormattingValue = false;
-                continue;
-            }
-            if (character == '\u00a7') {
-                skipFormattingValue = true;
-                continue;
-            }
-            if (!Character.isISOControl(character)) output.append(character);
-        }
-        return output.toString()
-            .trim();
+        return NetworkCodec.sanitizeName(input);
     }
 
     static String sanitizeTaskText(String input) {
-        if (input == null || input.length() > NetworkCodec.MAX_EDIT_TASK_TEXT_CHARS) return null;
-        StringBuilder output = new StringBuilder();
-        boolean skipFormattingValue = false;
-        for (int index = 0; index < input.length(); index++) {
-            char character = input.charAt(index);
-            if (skipFormattingValue) {
-                skipFormattingValue = false;
-                continue;
+        return NetworkCodec.sanitizeTaskText(input);
+    }
+
+    static final class PlayerSessionSyncState {
+
+        PlayerBindingSnapshot lastSnapshot;
+        final Map<UUID, ClipboardPageSnapshot> sentPages = new HashMap<>();
+        int lastAckSeq;
+        private int lastBindTick;
+        private boolean hasBoundBefore;
+
+        boolean tryAcquireBindSlot(int serverTick, int cooldownTicks) {
+            if (hasBoundBefore && serverTick - lastBindTick >= 0 && serverTick - lastBindTick < cooldownTicks) {
+                return false;
             }
-            if (character == '\u00a7') {
-                skipFormattingValue = true;
-                continue;
-            }
-            if (!Character.isISOControl(character)) output.append(character);
+            hasBoundBefore = true;
+            lastBindTick = serverTick;
+            return true;
         }
-        return output.toString();
     }
 }

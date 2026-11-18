@@ -1,6 +1,7 @@
 package com.hepdd.clipboardanywhere.network;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -79,6 +80,59 @@ public final class NetworkCodec {
             readPage(buffer));
     }
 
+    public static void writeWireEntry(ByteBuf buffer, BindingWireEntry entry) {
+        writeUuid(buffer, entry.getId());
+        writeBoundedUtf8(buffer, entry.getDisplayName(), MAX_DISPLAY_NAME_CHARS);
+        buffer.writeByte(
+            entry.getStatus()
+                .getNetworkId());
+        buffer.writeBoolean(entry.hasPage());
+        if (entry.hasPage()) {
+            writePage(buffer, entry.getPage());
+        }
+    }
+
+    public static BindingWireEntry readWireEntry(ByteBuf buffer) {
+        UUID id = readUuid(buffer);
+        if (id == null) {
+            throw new IllegalArgumentException("Binding entry id cannot be null");
+        }
+        String displayName = readBoundedUtf8(buffer, MAX_DISPLAY_NAME_CHARS);
+        TargetStatus status = TargetStatus.fromNetworkId(buffer.readUnsignedByte());
+        boolean hasPage = buffer.readBoolean();
+        ClipboardPageSnapshot page = hasPage ? readPage(buffer) : null;
+        return hasPage ? BindingWireEntry.withPage(id, displayName, status, page)
+            : BindingWireEntry.summaryOnly(id, displayName, status);
+    }
+
+    public static void writeStatePayload(ByteBuf buffer, BindingStatePayload payload) {
+        BindingStatePayload value = payload == null ? BindingStatePayload.EMPTY : payload;
+        writeUuid(buffer, value.getActiveId());
+        buffer.writeInt(value.getAckSeq());
+        List<BindingWireEntry> entries = value.getEntries();
+        if (entries.size() > MAX_BINDINGS) {
+            throw new IllegalArgumentException("Too many clipboard bindings: " + entries.size());
+        }
+        buffer.writeShort(entries.size());
+        for (BindingWireEntry entry : entries) {
+            writeWireEntry(buffer, entry);
+        }
+    }
+
+    public static BindingStatePayload readStatePayload(ByteBuf buffer) {
+        UUID activeId = readUuid(buffer);
+        int ackSeq = buffer.readInt();
+        int count = buffer.readUnsignedShort();
+        if (count > MAX_BINDINGS) {
+            throw new IllegalArgumentException("Too many clipboard bindings: " + count);
+        }
+        List<BindingWireEntry> entries = new ArrayList<>(count);
+        for (int index = 0; index < count; index++) {
+            entries.add(readWireEntry(buffer));
+        }
+        return new BindingStatePayload(activeId, ackSeq, entries);
+    }
+
     public static void writePlayerSnapshot(ByteBuf buffer, PlayerBindingSnapshot snapshot) {
         PlayerBindingSnapshot value = snapshot == null ? PlayerBindingSnapshot.EMPTY : snapshot;
         writeUuid(buffer, value.getActiveId());
@@ -130,5 +184,146 @@ public final class NetworkCodec {
             throw new IllegalArgumentException("UTF-8 string exceeds character limit: " + value.length());
         }
         return value;
+    }
+
+    public static String sanitizeName(String input) {
+        if (input == null) return "";
+        StringBuilder output = new StringBuilder();
+        boolean skipFormattingValue = false;
+        for (int index = 0; index < input.length() && output.length() < MAX_DISPLAY_NAME_CHARS; index++) {
+            char character = input.charAt(index);
+            if (skipFormattingValue) {
+                skipFormattingValue = false;
+                continue;
+            }
+            if (character == '\u00a7') {
+                skipFormattingValue = true;
+                continue;
+            }
+            if (!Character.isISOControl(character)) output.append(character);
+        }
+        return output.toString()
+            .trim();
+    }
+
+    public static String sanitizeTaskText(String input) {
+        if (input == null || input.length() > MAX_EDIT_TASK_TEXT_CHARS) return null;
+        StringBuilder output = new StringBuilder();
+        boolean skipFormattingValue = false;
+        for (int index = 0; index < input.length(); index++) {
+            char character = input.charAt(index);
+            if (skipFormattingValue) {
+                skipFormattingValue = false;
+                continue;
+            }
+            if (character == '\u00a7') {
+                skipFormattingValue = true;
+                continue;
+            }
+            if (!Character.isISOControl(character)) output.append(character);
+        }
+        return output.toString();
+    }
+
+    public static final class BindingWireEntry {
+
+        private final UUID id;
+        private final String displayName;
+        private final TargetStatus status;
+        private final boolean hasPage;
+        private final ClipboardPageSnapshot page;
+
+        private BindingWireEntry(UUID id, String displayName, TargetStatus status, boolean hasPage,
+            ClipboardPageSnapshot page) {
+            if (id == null) throw new IllegalArgumentException("id");
+            this.id = id;
+            this.displayName = displayName == null ? "" : displayName;
+            this.status = status == null ? TargetStatus.MISSING : status;
+            this.hasPage = hasPage;
+            this.page = hasPage ? (page == null ? ClipboardPageSnapshot.EMPTY : page) : null;
+        }
+
+        public static BindingWireEntry withPage(UUID id, String displayName, TargetStatus status,
+            ClipboardPageSnapshot page) {
+            return new BindingWireEntry(id, displayName, status, true, page);
+        }
+
+        public static BindingWireEntry summaryOnly(UUID id, String displayName, TargetStatus status) {
+            return new BindingWireEntry(id, displayName, status, false, null);
+        }
+
+        public UUID getId() {
+            return id;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public TargetStatus getStatus() {
+            return status;
+        }
+
+        public boolean hasPage() {
+            return hasPage;
+        }
+
+        public ClipboardPageSnapshot getPage() {
+            return page;
+        }
+    }
+
+    public static final class BindingStatePayload {
+
+        public static final BindingStatePayload EMPTY = new BindingStatePayload(
+            null,
+            0,
+            Collections.<BindingWireEntry>emptyList());
+
+        private final UUID activeId;
+        private final int ackSeq;
+        private final List<BindingWireEntry> entries;
+
+        public BindingStatePayload(UUID activeId, int ackSeq, List<BindingWireEntry> entries) {
+            this.entries = Collections.unmodifiableList(
+                entries == null ? Collections.<BindingWireEntry>emptyList() : new ArrayList<>(entries));
+            this.activeId = contains(this.entries, activeId) ? activeId : null;
+            this.ackSeq = ackSeq;
+        }
+
+        public static BindingStatePayload fullFromSnapshot(PlayerBindingSnapshot snapshot, int ackSeq) {
+            PlayerBindingSnapshot value = snapshot == null ? PlayerBindingSnapshot.EMPTY : snapshot;
+            List<BindingView> bindings = value.getBindings();
+            List<BindingWireEntry> entries = new ArrayList<>(bindings.size());
+            for (BindingView binding : bindings) {
+                entries.add(
+                    BindingWireEntry.withPage(
+                        binding.getId(),
+                        binding.getDisplayName(),
+                        binding.getStatus(),
+                        binding.getSnapshot()));
+            }
+            return new BindingStatePayload(value.getActiveId(), ackSeq, entries);
+        }
+
+        public UUID getActiveId() {
+            return activeId;
+        }
+
+        public int getAckSeq() {
+            return ackSeq;
+        }
+
+        public List<BindingWireEntry> getEntries() {
+            return entries;
+        }
+
+        private static boolean contains(List<BindingWireEntry> entries, UUID id) {
+            if (id == null) return false;
+            for (BindingWireEntry entry : entries) {
+                if (id.equals(entry.getId())) return true;
+            }
+            return false;
+        }
     }
 }

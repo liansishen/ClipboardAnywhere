@@ -12,6 +12,11 @@ import jds.bibliocraft.tileentities.TileEntityClipboard;
 
 public final class BiblioClipboardAdapter {
 
+    private static final String[] TASK_KEYS = { "task1", "task2", "task3", "task4", "task5", "task6", "task7", "task8",
+        "task9" };
+    private static final String[] EMPTY_TASKS = new String[ClipboardPageSnapshot.TASK_COUNT];
+    private static final int[] EMPTY_STATES = new int[ClipboardPageSnapshot.TASK_COUNT];
+
     private BiblioClipboardAdapter() {}
 
     public static boolean ensureStructure(ItemStack stack) {
@@ -30,7 +35,9 @@ public final class BiblioClipboardAdapter {
             changed = true;
         }
         changed |= ensurePage(root, currentPage);
-        stack.setTagCompound(root);
+        if (changed) {
+            stack.setTagCompound(root);
+        }
         return changed;
     }
 
@@ -41,19 +48,21 @@ public final class BiblioClipboardAdapter {
         NBTTagCompound root = stack.getTagCompound();
         int totalPages = Math.max(1, root.getInteger("totalPages"));
         int currentPage = clamp(root.getInteger("currentPage"), 1, totalPages);
-        NBTTagCompound page = root.getCompoundTag("page" + currentPage);
-        NBTTagCompound taskTag = page.getCompoundTag("tasks");
-        String[] tasks = new String[ClipboardPageSnapshot.TASK_COUNT];
-        for (int row = 0; row < tasks.length; row++) {
-            tasks[row] = taskTag.getString("task" + (row + 1));
+        String pageKey = "page" + currentPage;
+        if (!root.hasKey(pageKey, 10)) {
+            return new ClipboardPageSnapshot(currentPage, totalPages, "", EMPTY_TASKS, EMPTY_STATES, capturedAt);
         }
-        return new ClipboardPageSnapshot(
-            currentPage,
-            totalPages,
-            page.getString("title"),
-            tasks,
-            page.getIntArray("taskStates"),
-            capturedAt);
+        NBTTagCompound page = root.getCompoundTag(pageKey);
+        String[] tasks = EMPTY_TASKS;
+        if (page.hasKey("tasks", 10)) {
+            NBTTagCompound taskTag = page.getCompoundTag("tasks");
+            tasks = new String[ClipboardPageSnapshot.TASK_COUNT];
+            for (int row = 0; row < TASK_KEYS.length; row++) {
+                tasks[row] = taskTag.getString(TASK_KEYS[row]);
+            }
+        }
+        int[] states = page.hasKey("taskStates", 11) ? page.getIntArray("taskStates") : EMPTY_STATES;
+        return new ClipboardPageSnapshot(currentPage, totalPages, page.getString("title"), tasks, states, capturedAt);
     }
 
     public static ClipboardPageSnapshot read(TileEntityClipboard tile, long capturedAt) {
@@ -156,32 +165,37 @@ public final class BiblioClipboardAdapter {
 
     private static boolean ensurePage(NBTTagCompound root, int pageNumber) {
         String pageKey = "page" + pageNumber;
-        boolean changed = !root.hasKey(pageKey);
-        NBTTagCompound page = root.getCompoundTag(pageKey);
+        boolean hadPage = root.hasKey(pageKey, 10);
+        boolean changed = !hadPage;
+        NBTTagCompound page = hadPage ? root.getCompoundTag(pageKey) : new NBTTagCompound();
 
         int[] originalStates = page.getIntArray("taskStates");
         int[] states = normalizeStates(originalStates);
-        if (!Arrays.equals(originalStates, states)) {
+        if (!page.hasKey("taskStates", 11) || !Arrays.equals(originalStates, states)) {
             page.setIntArray("taskStates", states);
             changed = true;
         }
 
-        boolean hadTasks = page.hasKey("tasks");
-        NBTTagCompound tasks = page.getCompoundTag("tasks");
-        for (int row = 1; row <= ClipboardPageSnapshot.TASK_COUNT; row++) {
-            String key = "task" + row;
-            if (!tasks.hasKey(key)) {
+        boolean hadTasks = page.hasKey("tasks", 10);
+        boolean tasksChanged = !hadTasks;
+        NBTTagCompound tasks = hadTasks ? page.getCompoundTag("tasks") : new NBTTagCompound();
+        for (String key : TASK_KEYS) {
+            if (!tasks.hasKey(key, 8)) {
                 tasks.setString(key, "");
-                changed = true;
+                tasksChanged = true;
             }
         }
-        if (!hadTasks) changed = true;
-        page.setTag("tasks", tasks);
-        if (!page.hasKey("title")) {
+        if (tasksChanged) {
+            page.setTag("tasks", tasks);
+            changed = true;
+        }
+        if (!page.hasKey("title", 8)) {
             page.setString("title", "");
             changed = true;
         }
-        root.setTag(pageKey, page);
+        if (changed) {
+            root.setTag(pageKey, page);
+        }
         return changed;
     }
 

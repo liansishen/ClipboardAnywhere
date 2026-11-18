@@ -65,7 +65,7 @@ public final class ServerEventHandler {
     @SubscribeEvent
     public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.player instanceof EntityPlayerMP) {
-            ClipboardServerService.INSTANCE.sendState((EntityPlayerMP) event.player);
+            ClipboardServerService.INSTANCE.sendFullState((EntityPlayerMP) event.player);
         }
     }
 

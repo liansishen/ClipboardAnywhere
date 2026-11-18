@@ -23,7 +23,7 @@ public final class C2SRequestState implements IMessage {
         @Override
         public IMessage onMessage(C2SRequestState message, MessageContext context) {
             final EntityPlayerMP player = context.getServerHandler().playerEntity;
-            ServerTaskQueue.INSTANCE.enqueue(() -> ClipboardServerService.INSTANCE.sendState(player));
+            ServerTaskQueue.INSTANCE.enqueue(() -> ClipboardServerService.INSTANCE.sendFullState(player));
             return null;
         }
     }

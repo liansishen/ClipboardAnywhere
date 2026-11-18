@@ -1,5 +1,8 @@
 package com.hepdd.clipboardanywhere.server;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -21,13 +24,24 @@ public final class ServerTargetResolver {
         long now) {
         UUID id = binding.getClipboardId();
         int inventorySlot = findInventorySlot(player.inventory.mainInventory, id);
-        if (inventorySlot >= 0) {
+        return resolveWithInventorySlot(player, inventorySlot, clipboard, binding, now);
+    }
+
+    public ServerTarget resolve(EntityPlayerMP player, Map<UUID, Integer> inventoryIndex, ClipboardRecord clipboard,
+        PlayerBindingRecord binding, long now) {
+        Integer slotObj = inventoryIndex == null ? null : inventoryIndex.get(binding.getClipboardId());
+        int inventorySlot = slotObj == null ? -1 : slotObj.intValue();
+        return resolveWithInventorySlot(player, inventorySlot, clipboard, binding, now);
+    }
+
+    private ServerTarget resolveWithInventorySlot(EntityPlayerMP player, int inventorySlot, ClipboardRecord clipboard,
+        PlayerBindingRecord binding, long now) {
+        if (inventorySlot >= 0 && inventorySlot < player.inventory.mainInventory.length) {
             ItemStack stack = player.inventory.mainInventory[inventorySlot];
-            if (BiblioClipboardAdapter.ensureStructure(stack)) {
-                player.inventory.markDirty();
-                player.inventoryContainer.detectAndSendChanges();
+            if (binding.getClipboardId()
+                .equals(ClipboardIdentity.getId(stack))) {
+                return ServerTarget.inventory(player, inventorySlot, stack, BiblioClipboardAdapter.read(stack, now));
             }
-            return ServerTarget.inventory(player, inventorySlot, stack, BiblioClipboardAdapter.read(stack, now));
         }
 
         if (clipboard == null || !clipboard.hasPlacedTarget()) {
@@ -43,15 +57,26 @@ public final class ServerTargetResolver {
             return ServerTarget.disconnected(binding.getCachedPage());
         }
         TileEntityClipboard tile = (TileEntityClipboard) rawTile;
-        if (!id.equals(ClipboardIdentity.getId(tile.getStackInSlot(0)))) {
+        if (!binding.getClipboardId()
+            .equals(ClipboardIdentity.getId(tile.getStackInSlot(0)))) {
             return ServerTarget.disconnected(binding.getCachedPage());
         }
-        if (BiblioClipboardAdapter.ensureStructure(tile.getStackInSlot(0))) {
-            tile.getNBTData();
-            tile.markDirty();
-            world.markBlockForUpdate(clipboard.getX(), clipboard.getY(), clipboard.getZ());
-        }
         return ServerTarget.placed(tile, BiblioClipboardAdapter.read(tile, now));
+    }
+
+    public Map<UUID, Integer> indexInventoryClipboards(ItemStack[] inventory) {
+        if (inventory == null) return Collections.emptyMap();
+        Map<UUID, Integer> slots = null;
+        for (int slot = 0; slot < inventory.length; slot++) {
+            UUID id = ClipboardIdentity.getId(inventory[slot]);
+            if (id != null) {
+                if (slots == null) slots = new HashMap<>();
+                if (!slots.containsKey(id)) {
+                    slots.put(id, Integer.valueOf(slot));
+                }
+            }
+        }
+        return slots == null ? Collections.<UUID, Integer>emptyMap() : slots;
     }
 
     static int findInventorySlot(ItemStack[] inventory, UUID id) {
