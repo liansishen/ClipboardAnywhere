@@ -20,15 +20,22 @@ public final class C2SUpdateTaskText implements IMessage {
     private int row;
     private String expectedText = "";
     private String replacementText = "";
+    private int clientSeq;
 
     public C2SUpdateTaskText() {}
 
     public C2SUpdateTaskText(UUID clipboardId, int pageNumber, int row, String expectedText, String replacementText) {
+        this(clipboardId, pageNumber, row, expectedText, replacementText, 0);
+    }
+
+    public C2SUpdateTaskText(UUID clipboardId, int pageNumber, int row, String expectedText, String replacementText,
+        int clientSeq) {
         this.clipboardId = clipboardId;
         this.pageNumber = pageNumber;
         this.row = row;
         this.expectedText = expectedText == null ? "" : expectedText;
         this.replacementText = replacementText == null ? "" : replacementText;
+        this.clientSeq = clientSeq;
     }
 
     @Override
@@ -38,6 +45,7 @@ public final class C2SUpdateTaskText implements IMessage {
         row = buffer.readByte();
         expectedText = NetworkCodec.readBoundedUtf8(buffer, NetworkCodec.MAX_TASK_TEXT_CHARS);
         replacementText = NetworkCodec.readBoundedUtf8(buffer, NetworkCodec.MAX_EDIT_TASK_TEXT_CHARS);
+        clientSeq = buffer.readInt();
     }
 
     @Override
@@ -47,6 +55,7 @@ public final class C2SUpdateTaskText implements IMessage {
         buffer.writeByte(row);
         NetworkCodec.writeBoundedUtf8(buffer, expectedText, NetworkCodec.MAX_TASK_TEXT_CHARS);
         NetworkCodec.writeBoundedUtf8(buffer, replacementText, NetworkCodec.MAX_EDIT_TASK_TEXT_CHARS);
+        buffer.writeInt(clientSeq);
     }
 
     public static final class Handler implements IMessageHandler<C2SUpdateTaskText, IMessage> {
@@ -59,9 +68,12 @@ public final class C2SUpdateTaskText implements IMessage {
             final int row = message.row;
             final String expectedText = message.expectedText;
             final String replacementText = message.replacementText;
-            ServerTaskQueue.INSTANCE.enqueue(
-                () -> ClipboardServerService.INSTANCE
-                    .updateTaskText(player, id, pageNumber, row, expectedText, replacementText));
+            final int seq = message.clientSeq;
+            ServerTaskQueue.INSTANCE.enqueue(() -> {
+                ClipboardServerService.INSTANCE.recordClientSeq(player, seq);
+                ClipboardServerService.INSTANCE
+                    .updateTaskText(player, id, pageNumber, row, expectedText, replacementText);
+            });
             return null;
         }
     }

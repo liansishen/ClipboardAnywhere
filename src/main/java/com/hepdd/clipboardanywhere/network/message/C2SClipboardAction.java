@@ -19,13 +19,19 @@ public final class C2SClipboardAction implements IMessage {
     private UUID clipboardId;
     private ClipboardAction action;
     private int row;
+    private int clientSeq;
 
     public C2SClipboardAction() {}
 
     public C2SClipboardAction(UUID clipboardId, ClipboardAction action, int row) {
+        this(clipboardId, action, row, 0);
+    }
+
+    public C2SClipboardAction(UUID clipboardId, ClipboardAction action, int row, int clientSeq) {
         this.clipboardId = clipboardId;
         this.action = action;
         this.row = row;
+        this.clientSeq = clientSeq;
     }
 
     @Override
@@ -33,6 +39,7 @@ public final class C2SClipboardAction implements IMessage {
         clipboardId = NetworkCodec.readUuid(buffer);
         action = ClipboardAction.fromNetworkId(buffer.readUnsignedByte());
         row = buffer.readByte();
+        clientSeq = buffer.readInt();
     }
 
     @Override
@@ -40,6 +47,7 @@ public final class C2SClipboardAction implements IMessage {
         NetworkCodec.writeUuid(buffer, clipboardId);
         buffer.writeByte(action == null ? -1 : action.getNetworkId());
         buffer.writeByte(row);
+        buffer.writeInt(clientSeq);
     }
 
     public static final class Handler implements IMessageHandler<C2SClipboardAction, IMessage> {
@@ -50,8 +58,11 @@ public final class C2SClipboardAction implements IMessage {
             final UUID id = message.clipboardId;
             final ClipboardAction action = message.action;
             final int row = message.row;
-            ServerTaskQueue.INSTANCE
-                .enqueue(() -> ClipboardServerService.INSTANCE.performAction(player, id, action, row));
+            final int seq = message.clientSeq;
+            ServerTaskQueue.INSTANCE.enqueue(() -> {
+                ClipboardServerService.INSTANCE.recordClientSeq(player, seq);
+                ClipboardServerService.INSTANCE.performAction(player, id, action, row);
+            });
             return null;
         }
     }

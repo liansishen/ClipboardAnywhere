@@ -44,8 +44,8 @@ public final class ClipboardOverlay {
     private static final int OPACITY_SLIDER_LEFT = 50;
     private static final int OPACITY_SLIDER_RIGHT_MARGIN = 12;
     private static final int COLLAPSED_DRAG_THRESHOLD = 3;
-    private static final RenderItem ITEM_RENDERER = new RenderItem();
 
+    private RenderItem itemRenderer;
     private boolean dropdownOpen;
     private int dropdownOffset;
     private GuiTextField renameField;
@@ -55,8 +55,12 @@ public final class ClipboardOverlay {
     private int taskEditPage;
     private int taskEditRow = -1;
     private String taskEditOriginalText;
-    private boolean taskEditRepeatWasEnabled;
+    private boolean taskEditModified;
+    private boolean modalRepeatWasEnabled;
+    private boolean modalRepeatOverridden;
     private UUID pendingUnbindId;
+    private ItemStack collapsedIconStack;
+    private RenderedTextCache renderedTextCache;
     private boolean layoutEditing;
     private OverlayGeometry layoutGeometry;
     private double layoutBackgroundOpacity;
@@ -249,7 +253,8 @@ public final class ClipboardOverlay {
                 BindingView selected = snapshot.getBindings()
                     .get(dropdownOffset + row);
                 dropdownOpen = false;
-                NetworkHandler.sendToServer(new C2SSelectBinding(selected.getId()));
+                int seq = ClipboardClientState.INSTANCE.applyOptimisticSelect(selected.getId());
+                NetworkHandler.sendToServer(new C2SSelectBinding(selected.getId(), seq));
                 return true;
             }
         }
@@ -289,7 +294,7 @@ public final class ClipboardOverlay {
         int taskStart = OverlayGeometry.HEADER_HEIGHT;
         int taskRow = OverlayGeometry.checkboxRowAt(x, y, taskStart, ClipboardPageSnapshot.TASK_COUNT);
         if (taskRow >= 0) {
-            NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), ClipboardAction.CYCLE_TASK, taskRow));
+            dispatchAction(active.getId(), ClipboardAction.CYCLE_TASK, taskRow);
             return true;
         }
         int textRow = taskTextRowAt(x, y, taskStart);
@@ -299,11 +304,11 @@ public final class ClipboardOverlay {
         }
         int footerTop = OverlayGeometry.LOGICAL_HEIGHT - OverlayGeometry.FOOTER_HEIGHT;
         if (y >= footerTop && x < 28) {
-            NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), ClipboardAction.PREVIOUS_PAGE, -1));
+            dispatchAction(active.getId(), ClipboardAction.PREVIOUS_PAGE, -1);
             return true;
         }
         if (y >= footerTop && x >= OverlayGeometry.LOGICAL_WIDTH - 28) {
-            NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), ClipboardAction.NEXT_PAGE, -1));
+            dispatchAction(active.getId(), ClipboardAction.NEXT_PAGE, -1);
             return true;
         }
         return true;
@@ -329,10 +334,7 @@ public final class ClipboardOverlay {
             if (keyCode == 1) {
                 closeModal();
             } else if (keyCode == 28 || keyCode == 156) {
-                String name = renameField.getText()
-                    .trim();
-                if (!name.isEmpty()) NetworkHandler.sendToServer(new C2SRenameBinding(renameId, name));
-                closeModal();
+                submitRename();
             } else {
                 renameField.textboxKeyTyped(character, keyCode);
             }
@@ -348,7 +350,11 @@ public final class ClipboardOverlay {
                     : 1;
                 submitTaskEdit(taskEditRow + direction);
             } else {
+                String before = taskEditField.getText();
                 taskEditField.textboxKeyTyped(character, keyCode);
+                if (!before.equals(taskEditField.getText())) {
+                    taskEditModified = true;
+                }
             }
             return true;
         }
@@ -396,8 +402,13 @@ public final class ClipboardOverlay {
             .getActiveBinding();
         if (active != null && active.getStatus()
             .isReadable()) {
-            NetworkHandler.sendToServer(new C2SClipboardAction(active.getId(), action, -1));
+            dispatchAction(active.getId(), action, -1);
         }
+    }
+
+    private static void dispatchAction(UUID id, ClipboardAction action, int row) {
+        int seq = ClipboardClientState.INSTANCE.applyOptimisticAction(id, action, row);
+        NetworkHandler.sendToServer(new C2SClipboardAction(id, action, row, seq));
     }
 
     public void resetTransientState() {
@@ -568,16 +579,12 @@ public final class ClipboardOverlay {
         Gui.drawRect(1, 1, OverlayGeometry.LOGICAL_WIDTH - 1, logicalHeight - 1, panel);
 
         ClipboardPageSnapshot page = active.getSnapshot();
+        RenderedTextCache textCache = textCacheFor(font, active);
         if (controlsVisible) {
             Gui.drawRect(1, 1, OverlayGeometry.LOGICAL_WIDTH - 1, OverlayGeometry.HEADER_HEIGHT, header);
-            drawHeader(font, active, mouseX, mouseY);
+            drawHeader(font, active, textCache, mouseX, mouseY);
         } else {
-            String title = trim(
-                font,
-                page.getTitle()
-                    .isEmpty() ? " " : page.getTitle(),
-                OverlayGeometry.LOGICAL_WIDTH - 18);
-            drawCentered(font, title, 5, 0xFFE8E8E8);
+            drawCentered(font, textCache.trimmedTitle, 5, 0xFFE8E8E8);
         }
         int taskTop = OverlayGeometry.HEADER_HEIGHT;
         int visibleTasks = layoutEditing ? ClipboardPageSnapshot.TASK_COUNT - 1 : ClipboardPageSnapshot.TASK_COUNT;
@@ -586,6 +593,7 @@ public final class ClipboardOverlay {
             drawTask(
                 font,
                 page,
+                textCache.trimmedTasks[row],
                 row,
                 y,
                 active.getStatus()
@@ -615,15 +623,11 @@ public final class ClipboardOverlay {
         }
     }
 
-    private void drawHeader(FontRenderer font, BindingView active, int mouseX, int mouseY) {
+    private void drawHeader(FontRenderer font, BindingView active, RenderedTextCache textCache, int mouseX,
+        int mouseY) {
         boolean readable = active.getStatus()
             .isReadable();
-        String suffix = readable ? "" : " [!]";
-        font.drawStringWithShadow(
-            trim(font, active.getDisplayName() + suffix, DROPDOWN_WIDTH - 8),
-            5,
-            5,
-            fade(0xFFFFFFFF));
+        font.drawStringWithShadow(textCache.trimmedHeaderLabel, 5, 5, fade(0xFFFFFFFF));
         if (layoutEditing) {
             String label = StatCollector.translateToLocal("gui.clipboardanywhere.drag_title");
             font.drawStringWithShadow(
@@ -640,7 +644,8 @@ public final class ClipboardOverlay {
         drawCollapseIcon(OverlayGeometry.LOGICAL_WIDTH - ICON_WIDTH, 0, 0xFFFFFFFF);
     }
 
-    private void drawTask(FontRenderer font, ClipboardPageSnapshot page, int row, int y, boolean enabled) {
+    private void drawTask(FontRenderer font, ClipboardPageSnapshot page, String trimmedTask, int row, int y,
+        boolean enabled) {
         Gui.drawRect(
             18,
             y + OverlayGeometry.ROW_HEIGHT - 1,
@@ -655,7 +660,7 @@ public final class ClipboardOverlay {
         if (state == 2) drawTaskX(y, fade(enabled ? 0xFFE77878 : 0xFF777C7E));
         if (taskEditField != null && row == taskEditRow) return;
         int textColor = fade(enabled ? 0xFFE8ECEC : 0xFF8C9294);
-        font.drawString(trim(font, page.getTask(row), OverlayGeometry.LOGICAL_WIDTH - 26), 20, y + 3, textColor);
+        font.drawString(trimmedTask, 20, y + 3, textColor);
     }
 
     private static void drawCheckMark(int rowTop, int color) {
@@ -885,7 +890,8 @@ public final class ClipboardOverlay {
     private void drawCollapsedIcon(OverlayGeometry geometry) {
         int left = geometry.getCollapsedLeft();
         int top = geometry.getTop();
-        if (ItemLoader.clippy == null) return;
+        ItemStack iconStack = getCollapsedIconStack();
+        if (iconStack == null) return;
         Minecraft minecraft = Minecraft.getMinecraft();
         GL11.glPushAttrib(
             GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT
@@ -896,15 +902,19 @@ public final class ClipboardOverlay {
         GL11.glTranslated(left, top, 0.0D);
         double iconScale = OverlayGeometry.COLLAPSED_SIZE / 16.0D;
         GL11.glScaled(iconScale, iconScale, 1.0D);
-        ITEM_RENDERER.renderItemAndEffectIntoGUI(
-            minecraft.fontRenderer,
-            minecraft.getTextureManager(),
-            new ItemStack(ItemLoader.clippy),
-            0,
-            0);
+        if (itemRenderer == null) itemRenderer = new RenderItem();
+        itemRenderer.renderItemAndEffectIntoGUI(minecraft.fontRenderer, minecraft.getTextureManager(), iconStack, 0, 0);
         GL11.glPopMatrix();
         GL11.glPopAttrib();
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+    }
+
+    private ItemStack getCollapsedIconStack() {
+        if (ItemLoader.clippy == null) return null;
+        if (collapsedIconStack == null || collapsedIconStack.getItem() != ItemLoader.clippy) {
+            collapsedIconStack = new ItemStack(ItemLoader.clippy);
+        }
+        return collapsedIconStack;
     }
 
     private void drawOutline(int left, int top, int right, int bottom, int color) {
@@ -1073,14 +1083,23 @@ public final class ClipboardOverlay {
     private boolean handleRenameClick(int x, int y) {
         renameField.mouseClicked(x, y, 0);
         if (modalConfirmBounds().contains(x, y)) {
-            String name = renameField.getText()
-                .trim();
-            if (!name.isEmpty()) NetworkHandler.sendToServer(new C2SRenameBinding(renameId, name));
-            closeModal();
+            submitRename();
         } else if (modalCancelBounds().contains(x, y)) {
             closeModal();
         }
         return true;
+    }
+
+    private void submitRename() {
+        if (renameField == null) return;
+        UUID targetId = renameId;
+        String name = renameField.getText()
+            .trim();
+        closeModal();
+        if (!name.isEmpty() && targetId != null) {
+            int seq = ClipboardClientState.INSTANCE.applyOptimisticRename(targetId, name);
+            NetworkHandler.sendToServer(new C2SRenameBinding(targetId, name, seq));
+        }
     }
 
     private boolean handleTaskEditClick(int x, int y) {
@@ -1118,6 +1137,7 @@ public final class ClipboardOverlay {
         taskEditPage = page.getCurrentPage();
         taskEditRow = row;
         taskEditOriginalText = page.getTask(row);
+        taskEditModified = false;
         taskEditField = new GuiTextField(
             Minecraft.getMinecraft().fontRenderer,
             18,
@@ -1127,8 +1147,7 @@ public final class ClipboardOverlay {
         taskEditField.setMaxStringLength(NetworkCodec.MAX_EDIT_TASK_TEXT_CHARS);
         taskEditField.setText(taskEditOriginalText);
         taskEditField.setFocused(true);
-        taskEditRepeatWasEnabled = Keyboard.areRepeatEventsEnabled();
-        Keyboard.enableRepeatEvents(true);
+        enableModalKeyRepeat();
         dropdownOpen = false;
     }
 
@@ -1138,16 +1157,21 @@ public final class ClipboardOverlay {
 
     private void submitTaskEdit(int nextRow) {
         if (taskEditField == null) return;
-        BindingView active = ClipboardClientState.INSTANCE.getSnapshot()
-            .getActiveBinding();
         UUID editingId = taskEditId;
         int editingPage = taskEditPage;
         int editingRow = taskEditRow;
         String originalText = taskEditOriginalText;
         String replacementText = taskEditField.getText();
+        boolean shouldSend = shouldSubmitTaskEdit(originalText, replacementText, taskEditModified);
         closeModal();
-        NetworkHandler
-            .sendToServer(new C2SUpdateTaskText(editingId, editingPage, editingRow, originalText, replacementText));
+        if (shouldSend) {
+            int seq = ClipboardClientState.INSTANCE
+                .applyOptimisticTaskText(editingId, editingPage, editingRow, replacementText);
+            NetworkHandler.sendToServer(
+                new C2SUpdateTaskText(editingId, editingPage, editingRow, originalText, replacementText, seq));
+        }
+        BindingView active = ClipboardClientState.INSTANCE.getSnapshot()
+            .getActiveBinding();
         if (nextRow >= 0 && nextRow < ClipboardPageSnapshot.TASK_COUNT
             && active != null
             && active.getId()
@@ -1158,6 +1182,13 @@ public final class ClipboardOverlay {
                 .getCurrentPage() == editingPage) {
             beginTaskEdit(active, nextRow);
         }
+    }
+
+    static boolean shouldSubmitTaskEdit(String originalText, String replacementText, boolean modifiedByUser) {
+        if (!modifiedByUser) return false;
+        String normalizedOriginal = originalText == null ? "" : originalText;
+        String normalizedReplacement = replacementText == null ? "" : replacementText;
+        return !normalizedReplacement.equals(normalizedOriginal);
     }
 
     private static int taskTextRowAt(int x, int y, int taskStart) {
@@ -1178,7 +1209,16 @@ public final class ClipboardOverlay {
         renameField.setMaxStringLength(32);
         renameField.setText(active.getDisplayName());
         renameField.setFocused(true);
+        enableModalKeyRepeat();
         dropdownOpen = false;
+    }
+
+    private void enableModalKeyRepeat() {
+        if (!modalRepeatOverridden) {
+            modalRepeatWasEnabled = Keyboard.areRepeatEventsEnabled();
+            modalRepeatOverridden = true;
+        }
+        Keyboard.enableRepeatEvents(true);
     }
 
     private void closeModal() {
@@ -1187,15 +1227,58 @@ public final class ClipboardOverlay {
         renameId = null;
         if (taskEditField != null) {
             taskEditField.setFocused(false);
-            Keyboard.enableRepeatEvents(taskEditRepeatWasEnabled);
+        }
+        if (modalRepeatOverridden) {
+            Keyboard.enableRepeatEvents(modalRepeatWasEnabled);
+            modalRepeatOverridden = false;
         }
         taskEditField = null;
         taskEditId = null;
         taskEditPage = 0;
         taskEditRow = -1;
         taskEditOriginalText = null;
-        taskEditRepeatWasEnabled = false;
+        taskEditModified = false;
+        modalRepeatWasEnabled = false;
         pendingUnbindId = null;
+    }
+
+    private RenderedTextCache textCacheFor(FontRenderer font, BindingView active) {
+        boolean unicodeFlag = font.getUnicodeFlag();
+        if (renderedTextCache != null && renderedTextCache.binding == active
+            && renderedTextCache.unicodeFlag == unicodeFlag) {
+            return renderedTextCache;
+        }
+        String suffix = active.getStatus()
+            .isReadable() ? "" : " [!]";
+        String trimmedHeader = trim(font, active.getDisplayName() + suffix, DROPDOWN_WIDTH - 8);
+        ClipboardPageSnapshot page = active.getSnapshot();
+        String rawTitle = page.getTitle()
+            .isEmpty() ? " " : page.getTitle();
+        String trimmedTitle = trim(font, rawTitle, OverlayGeometry.LOGICAL_WIDTH - 18);
+        String[] trimmedTasks = new String[ClipboardPageSnapshot.TASK_COUNT];
+        for (int row = 0; row < ClipboardPageSnapshot.TASK_COUNT; row++) {
+            trimmedTasks[row] = trim(font, page.getTask(row), OverlayGeometry.LOGICAL_WIDTH - 26);
+        }
+        renderedTextCache = new RenderedTextCache(active, unicodeFlag, trimmedHeader, trimmedTitle, trimmedTasks);
+        return renderedTextCache;
+    }
+
+    private static final class RenderedTextCache {
+
+        final BindingView binding;
+        final boolean unicodeFlag;
+        final String trimmedHeaderLabel;
+        final String trimmedTitle;
+        final String[] trimmedTasks;
+
+        RenderedTextCache(BindingView binding, boolean unicodeFlag, String trimmedHeaderLabel, String trimmedTitle,
+            String[] trimmedTasks) {
+            this.binding = binding;
+            this.unicodeFlag = unicodeFlag;
+            this.trimmedHeaderLabel = trimmedHeaderLabel;
+            this.trimmedTitle = trimmedTitle;
+            this.trimmedTasks = trimmedTasks;
+        }
     }
 
     private static String trim(FontRenderer font, String text, int width) {

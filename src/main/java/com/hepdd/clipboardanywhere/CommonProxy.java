@@ -3,6 +3,7 @@ package com.hepdd.clipboardanywhere;
 import net.minecraftforge.common.MinecraftForge;
 
 import com.hepdd.clipboardanywhere.model.PlayerBindingSnapshot;
+import com.hepdd.clipboardanywhere.network.NetworkCodec.BindingStatePayload;
 import com.hepdd.clipboardanywhere.network.NetworkHandler;
 import com.hepdd.clipboardanywhere.server.ServerEventHandler;
 import com.hepdd.clipboardanywhere.server.ServerTaskQueue;
@@ -35,6 +36,8 @@ public class CommonProxy {
     public void serverStarting(FMLServerStartingEvent event) {}
 
     public void handleBindingState(PlayerBindingSnapshot snapshot) {}
+
+    public void handleBindingState(BindingStatePayload payload) {}
 
     public void handleOperationResult(boolean success, String translationKey) {}
 }

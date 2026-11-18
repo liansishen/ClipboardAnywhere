@@ -3,6 +3,7 @@ package com.hepdd.clipboardanywhere.network.message;
 import com.hepdd.clipboardanywhere.ClipboardAnywhere;
 import com.hepdd.clipboardanywhere.model.PlayerBindingSnapshot;
 import com.hepdd.clipboardanywhere.network.NetworkCodec;
+import com.hepdd.clipboardanywhere.network.NetworkCodec.BindingStatePayload;
 
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
@@ -11,33 +12,37 @@ import io.netty.buffer.ByteBuf;
 
 public final class S2CBindingState implements IMessage {
 
-    private PlayerBindingSnapshot snapshot = PlayerBindingSnapshot.EMPTY;
+    private BindingStatePayload payload = BindingStatePayload.EMPTY;
 
     public S2CBindingState() {}
 
-    public S2CBindingState(PlayerBindingSnapshot snapshot) {
-        this.snapshot = snapshot;
+    public S2CBindingState(BindingStatePayload payload) {
+        this.payload = payload == null ? BindingStatePayload.EMPTY : payload;
     }
 
-    public PlayerBindingSnapshot getSnapshot() {
-        return snapshot;
+    public S2CBindingState(PlayerBindingSnapshot snapshot) {
+        this(BindingStatePayload.fullFromSnapshot(snapshot, 0));
+    }
+
+    public BindingStatePayload getPayload() {
+        return payload;
     }
 
     @Override
     public void fromBytes(ByteBuf buffer) {
-        snapshot = NetworkCodec.readPlayerSnapshot(buffer);
+        payload = NetworkCodec.readStatePayload(buffer);
     }
 
     @Override
     public void toBytes(ByteBuf buffer) {
-        NetworkCodec.writePlayerSnapshot(buffer, snapshot);
+        NetworkCodec.writeStatePayload(buffer, payload);
     }
 
     public static final class Handler implements IMessageHandler<S2CBindingState, IMessage> {
 
         @Override
         public IMessage onMessage(S2CBindingState message, MessageContext context) {
-            ClipboardAnywhere.proxy.handleBindingState(message.getSnapshot());
+            ClipboardAnywhere.proxy.handleBindingState(message.getPayload());
             return null;
         }
     }

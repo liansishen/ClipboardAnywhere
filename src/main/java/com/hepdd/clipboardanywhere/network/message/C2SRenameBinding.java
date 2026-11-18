@@ -17,24 +17,32 @@ public final class C2SRenameBinding implements IMessage {
 
     private UUID clipboardId;
     private String displayName = "";
+    private int clientSeq;
 
     public C2SRenameBinding() {}
 
     public C2SRenameBinding(UUID clipboardId, String displayName) {
+        this(clipboardId, displayName, 0);
+    }
+
+    public C2SRenameBinding(UUID clipboardId, String displayName, int clientSeq) {
         this.clipboardId = clipboardId;
         this.displayName = displayName == null ? "" : displayName;
+        this.clientSeq = clientSeq;
     }
 
     @Override
     public void fromBytes(ByteBuf buffer) {
         clipboardId = NetworkCodec.readUuid(buffer);
         displayName = NetworkCodec.readBoundedUtf8(buffer, NetworkCodec.MAX_DISPLAY_NAME_CHARS);
+        clientSeq = buffer.readInt();
     }
 
     @Override
     public void toBytes(ByteBuf buffer) {
         NetworkCodec.writeUuid(buffer, clipboardId);
         NetworkCodec.writeBoundedUtf8(buffer, displayName, NetworkCodec.MAX_DISPLAY_NAME_CHARS);
+        buffer.writeInt(clientSeq);
     }
 
     public static final class Handler implements IMessageHandler<C2SRenameBinding, IMessage> {
@@ -44,7 +52,11 @@ public final class C2SRenameBinding implements IMessage {
             final EntityPlayerMP player = context.getServerHandler().playerEntity;
             final UUID id = message.clipboardId;
             final String name = message.displayName;
-            ServerTaskQueue.INSTANCE.enqueue(() -> ClipboardServerService.INSTANCE.renameBinding(player, id, name));
+            final int seq = message.clientSeq;
+            ServerTaskQueue.INSTANCE.enqueue(() -> {
+                ClipboardServerService.INSTANCE.recordClientSeq(player, seq);
+                ClipboardServerService.INSTANCE.renameBinding(player, id, name);
+            });
             return null;
         }
     }

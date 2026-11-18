@@ -8,6 +8,7 @@ import com.hepdd.clipboardanywhere.client.ClientKeyBindings;
 import com.hepdd.clipboardanywhere.client.ClipboardClientState;
 import com.hepdd.clipboardanywhere.client.ModularUiInputCompat;
 import com.hepdd.clipboardanywhere.model.PlayerBindingSnapshot;
+import com.hepdd.clipboardanywhere.network.NetworkCodec.BindingStatePayload;
 
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Loader;
@@ -30,6 +31,12 @@ public class ClientProxy extends CommonProxy {
     public void handleBindingState(final PlayerBindingSnapshot snapshot) {
         Minecraft.getMinecraft()
             .func_152344_a(() -> ClipboardClientState.INSTANCE.update(snapshot));
+    }
+
+    @Override
+    public void handleBindingState(final BindingStatePayload payload) {
+        Minecraft.getMinecraft()
+            .func_152344_a(() -> ClipboardClientState.INSTANCE.applyPayload(payload));
     }
 
     @Override
