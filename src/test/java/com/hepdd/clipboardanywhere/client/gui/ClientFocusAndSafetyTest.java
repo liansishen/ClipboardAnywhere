@@ -86,6 +86,16 @@ public class ClientFocusAndSafetyTest {
             ClipboardOverlay.shouldSubmitTaskEdit(longOriginal, "Shortened intentionally", true));
     }
 
+    @Test
+    public void suppressesAngelica2246DebugOptionsScreen() throws Exception {
+        java.lang.reflect.Method m = ClientEventHandler.class
+            .getDeclaredMethod("isSuppressedScreenClass", String.class);
+        m.setAccessible(true);
+        assertTrue(
+            "Angelica 2.2.46 DebugOptionsScreen should suppress the clipboard overlay",
+            ((Boolean) m.invoke(null, "com.gtnewhorizons.angelica.debug.screen.DebugOptionsScreen")).booleanValue());
+    }
+
     private static Field[] invokeGetCachedFields(Class<?> clazz) throws Exception {
         java.lang.reflect.Method m = ClientEventHandler.class.getDeclaredMethod("getCachedTextFields", Class.class);
         m.setAccessible(true);

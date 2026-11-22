@@ -343,6 +343,7 @@ public final class ClientEventHandler {
     static boolean isSuppressedScreenClass(String className) {
         return className.startsWith("com.gtnewhorizons.angelica.client.gui.")
             || className.startsWith("com.gtnewhorizons.angelica.config.")
+            || className.startsWith("com.gtnewhorizons.angelica.debug.screen.")
             || className.startsWith("jss.notfine.config.")
             || className.startsWith("jss.notfine.gui.")
             || className.startsWith("me.flashyreese.mods.reeses_sodium_options.client.gui.")
